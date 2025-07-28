@@ -1,0 +1,144 @@
+=== 数据库中的所有表 ===
+
+=== admin_logs 表结构 ===
+('id', 'int(11)', 'NO', 'PRI', None, 'auto_increment')
+('admin_id', 'int(11)', 'NO', 'MUL', None, '')
+('action', 'varchar(100)', 'NO', '', None, '')
+('details', 'text', 'YES', '', None, '')
+('created_at', 'timestamp', 'NO', 'MUL', 'current_timestamp()', '')
+
+=== admin_operation_logs 表结构 ===
+('id', 'int(11)', 'NO', 'PRI', None, 'auto_increment')
+('admin_id', 'int(11)', 'NO', 'MUL', None, '')
+('operation_type', 'varchar(50)', 'NO', 'MUL', None, '')
+('target_type', 'varchar(50)', 'NO', '', None, '')
+('target_id', 'varchar(50)', 'NO', '', None, '')
+('operation_details', 'text', 'YES', '', None, '')
+('ip_address', 'varchar(45)', 'YES', '', None, '')
+('user_agent', 'text', 'YES', '', None, '')
+('created_at', 'timestamp', 'NO', 'MUL', 'current_timestamp()', '')
+
+=== admin_statistics_cache 表结构 ===
+('id', 'int(11)', 'NO', 'PRI', None, 'auto_increment')
+('stat_key', 'varchar(100)', 'NO', 'MUL', None, '')
+('stat_value', 'bigint(20)', 'NO', '', None, '')
+('stat_date', 'date', 'NO', 'MUL', None, '')
+('created_at', 'timestamp', 'NO', '', 'current_timestamp()', '')
+('updated_at', 'timestamp', 'NO', '', 'current_timestamp()', 'on update current_timestamp()')
+
+=== comments 表结构 ===
+('id', 'int(11)', 'NO', 'PRI', None, 'auto_increment')
+('user_id', 'bigint(20) unsigned', 'NO', 'MUL', None, '')
+('wallpaper_id', 'bigint(20) unsigned', 'NO', 'MUL', None, '')
+('content', 'text', 'NO', '', None, '')
+('created_at', 'datetime', 'NO', '', None, '')
+('updated_at', 'datetime', 'YES', '', 'current_timestamp()', 'on update current_timestamp()')
+
+=== favorites 表结构 ===
+('id', 'int(11)', 'NO', 'PRI', None, 'auto_increment')
+('user_id', 'bigint(20) unsigned', 'NO', 'MUL', None, '')
+('wallpaper_id', 'bigint(20) unsigned', 'NO', 'MUL', None, '')
+('created_at', 'datetime', 'NO', '', None, '')
+
+=== sessions 表结构 ===
+('id', 'int(11)', 'NO', 'PRI', None, 'auto_increment')
+('user_id', 'bigint(20) unsigned', 'NO', 'MUL', None, '')
+('session_id', 'varchar(64)', 'NO', 'UNI', None, '')
+('created_at', 'datetime', 'NO', '', None, '')
+
+=== user_favorites 表结构 ===
+('id', 'int(11)', 'NO', 'PRI', None, 'auto_increment')
+('user_id', 'int(11)', 'NO', 'MUL', None, '')
+('wallpaper_id', 'varchar(255)', 'NO', '', None, '')
+('created_at', 'datetime', 'NO', '', 'current_timestamp()', '')
+
+=== user_status_ext 表结构 ===
+('id', 'int(11)', 'NO', 'PRI', None, 'auto_increment')
+('user_id', 'int(11)', 'NO', 'UNI', None, '')
+('status', "enum('active','disabled','suspended')", 'YES', 'MUL', 'active', '')
+('status_reason', 'varchar(255)', 'YES', '', None, '')
+('operator_id', 'int(11)', 'YES', '', None, '')
+('created_at', 'timestamp', 'NO', '', 'current_timestamp()', '')
+('updated_at', 'timestamp', 'NO', '', 'current_timestamp()', 'on update current_timestamp()')
+
+=== users 表结构 ===
+('id', 'bigint(20) unsigned', 'NO', 'PRI', None, 'auto_increment')
+('username', 'varchar(50)', 'NO', '', None, '')
+('email', 'varchar(100)', 'NO', 'UNI', None, '')
+('password', 'varchar(255)', 'NO', '', None, '')
+('created_at', 'datetime', 'NO', '', None, '')
+('updated_at', 'datetime', 'YES', '', 'current_timestamp()', 'on update current_timestamp()')
+('avatar', 'varchar(255)', 'YES', '', None, '')
+('is_admin', 'tinyint(1)', 'YES', '', '0', '')
+
+=== wallpaper_exile_status 表结构 ===
+('id', 'bigint(20) unsigned', 'NO', 'PRI', None, 'auto_increment')
+('wallpaper_id', 'bigint(20) unsigned', 'NO', 'UNI', None, '')
+('status', 'tinyint(1)', 'NO', '', '0', '')
+('created_at', 'datetime', 'NO', '', 'current_timestamp()', '')
+('updated_at', 'datetime', 'NO', '', 'current_timestamp()', 'on update current_timestamp()')
+('comment', 'text', 'YES', '', None, '')
+
+=== wallpaper_favorites 表结构 ===
+('id', 'int(10) unsigned', 'NO', 'PRI', None, 'auto_increment')
+('user_id', 'int(10) unsigned', 'NO', 'MUL', None, '')
+('wallpaper_id', 'bigint(20) unsigned', 'NO', '', None, '')
+('created_at', 'timestamp', 'NO', '', 'current_timestamp()', '')
+
+=== wallpaper_likes 表结构 ===
+('id', 'int(10) unsigned', 'NO', 'PRI', None, 'auto_increment')
+('wallpaper_id', 'bigint(20) unsigned', 'NO', 'MUL', None, '')
+('ip_address', 'varchar(45)', 'NO', '', None, '')
+('created_at', 'timestamp', 'NO', '', 'current_timestamp()', '')
+
+=== wallpaper_operation_log 表结构 ===
+('id', 'bigint(20) unsigned', 'NO', 'PRI', None, 'auto_increment')
+('wallpaper_id', 'bigint(20) unsigned', 'NO', 'MUL', None, '')
+('action_type', 'varchar(20)', 'NO', '', None, '')
+('operated_by_user_id', 'bigint(20) unsigned', 'YES', '', None, '')
+('operation_time', 'datetime', 'NO', 'MUL', 'current_timestamp()', '')
+('old_status', 'tinyint(1)', 'NO', '', None, '')
+('new_status', 'tinyint(1)', 'NO', '', None, '')
+('comment', 'text', 'YES', '', None, '')
+
+=== wallpaper_prompts 表结构 ===
+('id', 'int(11)', 'NO', 'PRI', None, 'auto_increment')
+('wallpaper_id', 'varchar(255)', 'NO', 'UNI', None, '')
+('content', 'text', 'YES', '', None, '')
+('is_locked', 'tinyint(1)', 'NO', 'MUL', '1', '')
+('created_at', 'timestamp', 'NO', '', 'current_timestamp()', '')
+('updated_at', 'timestamp', 'NO', '', 'current_timestamp()', 'on update current_timestamp()')
+
+=== wallpaper_review_status 表结构 ===
+('id', 'int(11)', 'NO', 'PRI', None, 'auto_increment')
+('wallpaper_id', 'bigint(20)', 'NO', 'UNI', None, '')
+('status', "enum('pending','approved','rejected')", 'YES', 'MUL', 'pending', '')
+('reviewer_id', 'int(11)', 'YES', '', None, '')
+('review_time', 'timestamp', 'YES', 'MUL', None, '')
+('review_notes', 'text', 'YES', '', None, '')
+('created_at', 'timestamp', 'NO', '', 'current_timestamp()', '')
+('updated_at', 'timestamp', 'NO', '', 'current_timestamp()', 'on update current_timestamp()')
+
+=== wallpaper_views_log 表结构 ===
+('id', 'int(11)', 'NO', 'PRI', None, 'auto_increment')
+('wallpaper_id', 'int(11)', 'NO', 'MUL', None, '')
+('ip_address', 'varchar(45)', 'NO', '', None, '')
+('view_date', 'date', 'NO', '', None, '')
+('created_at', 'datetime', 'YES', '', 'current_timestamp()', '')
+
+=== wallpapers 表结构 ===
+('id', 'bigint(20) unsigned', 'NO', 'PRI', None, 'auto_increment')
+('user_id', 'bigint(20) unsigned', 'YES', 'MUL', None, '')
+('title', 'varchar(255)', 'YES', '', None, '')
+('description', 'text', 'YES', '', None, '')
+('file_path', 'varchar(255)', 'NO', '', None, '')
+('file_size', 'varchar(32)', 'YES', '', None, '')
+('width', 'int(11)', 'NO', '', None, '')
+('height', 'int(11)', 'NO', '', None, '')
+('category', 'varchar(50)', 'YES', '', None, '')
+('tags', 'varchar(255)', 'YES', '', None, '')
+('format', 'varchar(16)', 'YES', '', None, '')
+('views', 'int(11)', 'YES', '', '0', '')
+('likes', 'int(11)', 'YES', '', '0', '')
+('created_at', 'datetime', 'NO', '', None, '')
+('updated_at', 'datetime', 'YES', '', 'current_timestamp()', 'on update current_timestamp()')

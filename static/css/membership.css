@@ -1,0 +1,431 @@
+/**
+ * 文件: static/css/membership.css
+ * 描述: 会员系统前端样式，包括会员状态显示、升级按钮、模态框等组件样式
+ * 依赖: Tailwind CSS
+ * 作者: AI助手
+ * 日期: 2024-01-27
+ */
+
+/* 会员状态主题色 */
+.membership-free {
+    color: #6b7280;
+    background-color: #f3f4f6;
+}
+
+.membership-monthly {
+    color: #2563eb;
+    background-color: #dbeafe;
+}
+
+.membership-permanent {
+    color: #7c3aed;
+    background-color: #ede9fe;
+}
+
+/* 会员徽章样式 */
+.membership-badge {
+    transition: all 0.3s ease;
+    transform: scale(1);
+}
+
+.membership-badge:hover {
+    transform: scale(1.05);
+}
+
+/* 升级按钮样式 */
+.upgrade-btn {
+    transition: all 0.3s ease;
+    transform: scale(1);
+}
+
+.upgrade-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.upgrade-btn:active {
+    transform: scale(0.98);
+}
+
+/* 会员权益卡片样式 */
+#membership-benefits-card {
+    transition: all 0.3s ease;
+    border: 1px solid #e5e7eb;
+    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+}
+
+#membership-benefits-card:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border-color: #d1d5db;
+}
+
+/* 会员类型特定样式 */
+.membership-free #membership-benefits-card {
+    border-left: 4px solid #6b7280;
+}
+
+.membership-monthly #membership-benefits-card {
+    border-left: 4px solid #2563eb;
+}
+
+.membership-permanent #membership-benefits-card {
+    border-left: 4px solid #7c3aed;
+}
+
+/* 升级选项卡片样式 */
+.upgrade-option-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.upgrade-option-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px -8px rgba(0, 0, 0, 0.15);
+}
+
+/* 月度会员升级卡片 */
+.monthly-upgrade-card {
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+    border: 1px solid #93c5fd;
+}
+
+.monthly-upgrade-card:hover {
+    background: linear-gradient(135deg, #bfdbfe 0%, #93c5fd 100%);
+}
+
+/* 永久会员升级卡片 */
+.permanent-upgrade-card {
+    background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+    border: 1px solid #c4b5fd;
+}
+
+.permanent-upgrade-card:hover {
+    background: linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%);
+}
+
+/* 永久会员感谢卡片 */
+.permanent-member-card {
+    background: linear-gradient(135deg, #fdf4ff 0%, #fae8ff 50%, #f3e8ff 100%);
+    border: 1px solid #d8b4fe;
+}
+
+/* 模态框样式 */
+.membership-modal {
+    backdrop-filter: blur(4px);
+}
+
+.membership-modal .modal-content {
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* 会员码输入框样式 */
+#membership-code-input {
+    transition: all 0.3s ease;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+#membership-code-input:focus {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: #3b82f6;
+}
+
+#membership-code-input.valid {
+    border-color: #10b981;
+    background-color: #f0fdf4;
+}
+
+#membership-code-input.invalid {
+    border-color: #ef4444;
+    background-color: #fef2f2;
+}
+
+/* 验证消息样式 */
+.validation-message {
+    transition: all 0.3s ease;
+}
+
+.validation-message.success {
+    color: #10b981;
+}
+
+.validation-message.error {
+    color: #ef4444;
+}
+
+/* 加载状态样式 */
+.loading-btn {
+    position: relative;
+    pointer-events: none;
+}
+
+.loading-btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 16px;
+    margin: -8px 0 0 -8px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* 成功状态样式 */
+.success-animation {
+    animation: successPulse 0.6s ease-out;
+}
+
+@keyframes successPulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* 会员图标样式 */
+.membership-icon {
+    transition: all 0.3s ease;
+}
+
+.membership-icon.fa-crown {
+    color: #7c3aed;
+    text-shadow: 0 0 10px rgba(124, 58, 237, 0.3);
+}
+
+.membership-icon.fa-star {
+    color: #2563eb;
+    text-shadow: 0 0 10px rgba(37, 99, 235, 0.3);
+}
+
+.membership-icon.fa-user {
+    color: #6b7280;
+}
+
+/* 权益列表样式 */
+.benefits-list {
+    list-style: none;
+    padding: 0;
+}
+
+.benefits-list li {
+    position: relative;
+    padding-left: 20px;
+    margin-bottom: 8px;
+    transition: all 0.3s ease;
+}
+
+.benefits-list li:before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: #10b981;
+    font-weight: bold;
+}
+
+.benefits-list li:hover {
+    transform: translateX(4px);
+    color: #374151;
+}
+
+/* 配额信息样式 */
+.quota-info {
+    background: linear-gradient(90deg, #f0f9ff 0%, #e0f2fe 100%);
+    border: 1px solid #0ea5e9;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-top: 8px;
+}
+
+.quota-info.low {
+    background: linear-gradient(90deg, #fef2f2 0%, #fee2e2 100%);
+    border-color: #ef4444;
+    color: #dc2626;
+}
+
+.quota-info.medium {
+    background: linear-gradient(90deg, #fffbeb 0%, #fef3c7 100%);
+    border-color: #f59e0b;
+    color: #d97706;
+}
+
+.quota-info.high {
+    background: linear-gradient(90deg, #f0fdf4 0%, #dcfce7 100%);
+    border-color: #10b981;
+    color: #059669;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    #membership-benefits-card {
+        padding: 12px;
+        margin-top: 16px;
+    }
+    
+    #upgrade-buttons-container {
+        margin-top: 16px;
+    }
+    
+    .upgrade-option-card {
+        padding: 12px;
+    }
+    
+    .membership-modal .modal-content {
+        margin: 8px;
+        max-width: calc(100vw - 16px);
+    }
+    
+    #membership-code-input {
+        font-size: 16px; /* 防止iOS缩放 */
+    }
+}
+
+@media (max-width: 480px) {
+    .membership-badge {
+        font-size: 10px;
+        padding: 2px 6px;
+    }
+    
+    .upgrade-btn {
+        padding: 8px 12px;
+        font-size: 14px;
+    }
+    
+    .benefits-list {
+        font-size: 12px;
+    }
+}
+
+/* 深色模式支持 */
+@media (prefers-color-scheme: dark) {
+    #membership-benefits-card {
+        background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+        border-color: #374151;
+        color: #f9fafb;
+    }
+    
+    .membership-modal {
+        background-color: rgba(0, 0, 0, 0.8);
+    }
+    
+    .membership-modal .modal-content {
+        background-color: #1f2937;
+        color: #f9fafb;
+    }
+    
+    #membership-code-input {
+        background-color: #374151;
+        border-color: #4b5563;
+        color: #f9fafb;
+    }
+    
+    #membership-code-input:focus {
+        border-color: #60a5fa;
+        background-color: #1f2937;
+    }
+}
+
+/* 打印样式 */
+@media print {
+    .membership-modal,
+    #upgrade-buttons-container {
+        display: none !important;
+    }
+    
+    #membership-benefits-card {
+        border: 1px solid #000;
+        box-shadow: none;
+    }
+}
+
+/* 高对比度模式支持 */
+@media (prefers-contrast: high) {
+    .membership-badge {
+        border: 2px solid currentColor;
+    }
+    
+    .upgrade-btn {
+        border: 2px solid currentColor;
+    }
+    
+    #membership-benefits-card {
+        border: 2px solid #000;
+    }
+}
+
+/* 减少动画模式支持 */
+@media (prefers-reduced-motion: reduce) {
+    .membership-badge,
+    .upgrade-btn,
+    #membership-benefits-card,
+    .upgrade-option-card,
+    .benefits-list li {
+        transition: none;
+    }
+    
+    .modal-content {
+        animation: none;
+    }
+    
+    .loading-btn::after {
+        animation: none;
+    }
+}
+
+/* 工具类 */
+.membership-hidden {
+    display: none !important;
+}
+
+.membership-visible {
+    display: block !important;
+}
+
+.membership-fade-in {
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.membership-slide-up {
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}

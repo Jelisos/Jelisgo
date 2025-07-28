@@ -1,0 +1,31 @@
+{
+    "basic": {
+        "site_name": "壁纸喵 ° 不吃鱼",
+        "site_subtitle": "你的专属壁纸库",
+        "contact_email": "582311520@qq.com",
+        "icp_number": "湘ICP备:2025132525"
+    },
+    "upload": {
+        "max_file_size": 10,
+        "allowed_file_types": "jpg,jpeg,png,webp",
+        "image_quality": "low",
+        "watermark_type": "text"
+    },
+    "security": {
+        "login_fail_limit": 3,
+        "account_lock_time": 30,
+        "min_password_length": 6
+    },
+    "email": {
+        "smtp_server": "smtp.qq.com",
+        "smtp_port": 465,
+        "sender_email": "tojelis@qq.com",
+        "sender_password": "gczcitspymfnbgai",
+        "enable_ssl": true
+    },
+    "seo": {
+        "keywords": "壁纸,高清壁纸,免费壁纸,桌面壁纸,手机壁纸,风景壁纸,动漫壁纸",
+        "description": "提供高质量免费壁纸下载，包含人物写真、古风、动漫、赛博、二次元、超现实抽象等多种分类，支持高清桌面和手机壁纸",
+        "og_image": "\/static\/images\/og-image.jpg"
+    }
+}

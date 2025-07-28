@@ -1,0 +1,1453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>WallpaperX - 用户中心</title>
+    <script type="module" src="static/js/site-config.js"></script>
+    <script src="static/css/tailwind.min.js"></script>
+    <link href="static/css/font-awesome.min.css" rel="stylesheet">
+    <link href="static/css/cropper.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1A73E8',
+                        secondary: '#4285F4',
+                        accent: '#8AB4F8',
+                        neutral: '#F0F2F5',
+                        'neutral-dark': '#E0E3E9',
+                        dark: '#333333',
+                        success: '#34A853',
+                        warning: '#FBBC05',
+                        danger: '#EA4335',
+                        info: '#4285F4'
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                },
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-hover {
+                @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+            }
+            .animate-fade-in {
+                animation: fadeIn 0.3s ease-in-out;
+            }
+            .animate-slide-up {
+                animation: slideUp 0.3s ease-out;
+            }
+            .animate-scale {
+                transition: transform 0.3s ease;
+            }
+            .animate-scale:hover {
+                transform: scale(1.03);
+            }
+            .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+            }
+            .scrollbar-hide {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+            /* 移动端侧边栏样式 */
+            @media (max-width: 768px) {
+                #sidebar {
+                    padding-top: 64px; /* 为顶部导航栏留出空间 */
+                }
+            }
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+    <!-- 会员样式 -->
+    <link rel="stylesheet" href="static/css/membership.css">
+</head>
+<body class="font-inter bg-neutral text-dark min-h-screen flex flex-col">
+    <!-- 顶部导航栏 -->
+    <header class="sticky top-0 z-40 bg-white shadow-sm">
+        <div class="container mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <a href="javascript:void(0)" class="text-primary text-2xl">
+                        <i class="fa fa-picture-o"></i>
+                    </a>
+                    <a href="javascript:void(0)" id="nav-brand-name" class="text-xl font-bold text-primary hidden sm:block">WallpaperX</a>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <!-- 搜索框 - 隐藏 -->
+                    <div class="relative hidden">
+                        <input id="dashboard-search-input" type="text" placeholder="搜索壁纸..." class="pl-9 pr-4 py-2 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary w-40 md:w-64">
+                        <i class="fa fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                    <!-- 上传壁纸按钮 - 隐藏 -->
+                    <a href="upload_wallpaper.php" id="dashboard-upload-btn" class="hidden px-4 py-2 bg-primary text-white rounded-full hover:bg-primary/90 transition-colors inline-flex items-center">
+                        <i class="fa fa-upload mr-1"></i> 上传壁纸
+                    </a>
+                    <!-- 只保留退出登录按钮 -->
+                    <button id="dashboard-logout-btn" class="px-4 py-2 bg-danger text-white rounded-full hover:bg-danger/90 transition-colors">退出登录</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <!-- 移动端侧边栏遮罩 -->
+        <div id="mobile-sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden md:hidden"></div>
+        
+        <!-- 侧边栏 -->
+        <aside id="sidebar" class="w-64 bg-white shadow-md z-50 fixed md:relative left-0 top-0 h-full md:h-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300 md:block overflow-y-auto scrollbar-hide">
+            <div class="p-4">
+                <div class="flex items-center space-x-3 mb-6">
+                    <img id="sidebar-user-avatar" src="/static/icons/default-avatar.svg" alt="用户头像" class="w-12 h-12 rounded-full border-2 border-primary user-avatar">
+                    <div>
+                        <h3 id="sidebar-username" class="font-bold user-username">用户名称</h3>
+                        <div class="flex items-center space-x-2">
+                            <span id="membership-status" class="text-sm text-gray-500">加载中...</span>
+                            <span id="membership-badge" class="hidden px-2 py-1 text-xs rounded-full"></span>
+                        </div>
+                        <!-- 会员到期时间显示 -->
+                        <div id="membership-expiry" class="text-xs text-gray-400 mt-1 hidden"></div>
+                    </div>
+                </div>
+                
+                <!-- 会员权益展示卡片 -->
+                <div id="membership-benefits-card" class="mt-6 p-4 rounded-lg border">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="font-medium">我的会员权益</h4>
+                        <i id="membership-icon" class="fa fa-user text-gray-400"></i>
+                    </div>
+                    
+                    <!-- 免费用户显示 -->
+                    <div id="free-user-benefits" class="hidden">
+                        <p class="text-sm text-gray-600 mb-3">当前为免费用户，升级享受更多权益</p>
+                        <ul class="text-xs text-gray-500 space-y-1">
+                            <li>• 基础壁纸浏览</li>
+                            <li>• 高清壁纸下载</li>
+                        </ul>
+                    </div>
+                    
+                    <!-- 1元会员显示 -->
+                    <div id="monthly-member-benefits" class="hidden">
+                        <p class="text-sm text-blue-600 mb-2">1元会员权益</p>
+                        <ul class="text-xs text-gray-600 space-y-1">
+                            <li>• 限10次-超清下载</li>
+                            <li>• 无水印壁纸</li>
+                            <li>• 优先客服支持</li>
+                        </ul>
+                        <div id="monthly-quota-info" class="mt-2 text-xs text-gray-500">
+                            <span>本月剩余下载次数: <span id="remaining-downloads">-</span></span>
+                        </div>
+                    </div>
+                    
+                    <!-- 永久会员显示 -->
+                    <div id="permanent-member-benefits" class="hidden">
+                        <p class="text-sm text-purple-600 mb-2">永久会员权益</p>
+                        <ul class="text-xs text-gray-600 space-y-1">
+                            <li>• 无限制下载</li>
+                            <li>• 全站壁纸无水印</li>
+                            <li>• 专属会员标识</li>
+                            <li>• VIP客服通道</li>
+                        </ul>
+                        <div class="mt-2 text-xs text-purple-500 font-medium">
+                            ✨ 永久享受所有权益
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 动态升级按钮区域 -->
+                <div id="upgrade-buttons-container" class="mt-6 space-y-4">
+                    <!-- 免费用户显示两个升级选项 -->
+                    <div id="free-upgrade-options" class="hidden space-y-4">
+                        <div class="p-4 bg-blue-50 rounded-lg">
+                            <h4 class="font-medium mb-2">升级为 "1元会员"</h4>
+                            <p class="text-sm text-gray-600 mb-3">限10次-超清无水印下载</p>
+                            <button class="w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors upgrade-btn" 
+                                    data-membership-type="monthly">
+                                立即升级 - ¥1元会员
+                            </button>
+                        </div>
+                        <div class="p-4 bg-purple-50 rounded-lg">
+                            <h4 class="font-medium mb-2">升级为 "永久会员"</h4>
+                            <p class="text-sm text-gray-600 mb-3">【无下载限制】永久有效</p>
+                            <button class="w-full py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors upgrade-btn" 
+                                    data-membership-type="permanent">
+                                立即升级 - ¥19.9 永久
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 1元会员显示永久升级选项 -->
+                    <div id="monthly-upgrade-option" class="hidden">
+                        <div class="p-4 bg-purple-50 rounded-lg">
+                            <h4 class="font-medium mb-2">升级为 "永久会员"</h4>
+                            <p class="text-sm text-gray-600 mb-3">享受无限制下载权益</p>
+                            <button class="w-full py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors upgrade-btn" 
+                                    data-membership-type="permanent">
+                                立即升级 - ¥19.9 永久
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 永久会员显示感谢信息 -->
+                    <div id="permanent-member-info" class="hidden">
+                        <div class="p-4 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg text-center">
+                            <i class="fa fa-crown text-purple-500 text-2xl mb-2"></i>
+                            <h4 class="font-medium text-purple-700 mb-1">感谢您的支持！</h4>
+                            <p class="text-sm text-purple-600">您是永久会员，享受所有权益</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <nav>
+                    <ul class="space-y-1">
+                        <!-- 隐藏的菜单项 -->
+                        <li class="hidden">
+                            <a href="#dashboard" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-neutral transition-colors">
+                                <i class="fa fa-tachometer"></i>
+                                <span>仪表盘</span>
+                            </a>
+                        </li>
+                        <li class="hidden">
+                            <a href="#liked" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-neutral transition-colors">
+                                <i class="fa fa-heart"></i>
+                                <span>我的喜欢</span>
+                                <span class="ml-auto bg-gray-200 text-gray-700 text-xs px-2 py-1 rounded-full">24</span>
+                            </a>
+                        </li>
+                        <li class="hidden">
+                            <a href="#collections" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-neutral transition-colors">
+                                <i class="fa fa-bookmark"></i>
+                                <span>我的收藏</span>
+                                <span class="ml-auto bg-gray-200 text-gray-700 text-xs px-2 py-1 rounded-full">18</span>
+                            </a>
+                        </li>
+                        <li class="hidden">
+                            <a href="#downloads" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-neutral transition-colors">
+                                <i class="fa fa-download"></i>
+                                <span>我的下载</span>
+                                <span class="ml-auto bg-gray-200 text-gray-700 text-xs px-2 py-1 rounded-full">56</span>
+                            </a>
+                        </li>
+                        <li class="hidden">
+                            <a href="my-uploads.php" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-neutral transition-colors">
+                                <i class="fa fa-upload"></i>
+                                <span>我的上传</span>
+                                <span class="ml-auto bg-gray-200 text-gray-700 text-xs px-2 py-1 rounded-full" id="user-uploads-count">0</span>
+                            </a>
+                        </li>
+                        <li class="hidden">
+                            <a href="#history" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-neutral transition-colors">
+                                <i class="fa fa-history"></i>
+                                <span>浏览历史</span>
+                                <span class="ml-auto bg-gray-200 text-gray-700 text-xs px-2 py-1 rounded-full">89</span>
+                            </a>
+                        </li>
+                        <!-- 管理员专用功能 -->
+                        <li id="admin-membership-codes" class="hidden">
+                            <a href="#membership-codes" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-neutral transition-colors" onclick="openMembershipCodesModal()">
+                                <i class="fa fa-ticket"></i>
+                                <span>会员码管理</span>
+                            </a>
+                        </li>
+                        <!-- 只显示账户设置，并设为激活状态 -->
+                        <li>
+                            <a href="#settings" class="flex items-center space-x-3 px-4 py-3 rounded-lg bg-primary/10 text-primary">
+                                <i class="fa fa-cog"></i>
+                                <span>账户设置</span>
+                            </a>
+                        </li>
+
+                    </ul>
+                </nav>
+                
+
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="flex-1 overflow-y-auto bg-neutral p-4 md:p-6">
+            <!-- 移动端菜单按钮 -->
+            <button id="mobile-sidebar-button" class="md:hidden mb-4 px-3 py-2 bg-white rounded-lg shadow-sm flex items-center space-x-2">
+                <i class="fa fa-bars"></i>
+                <span>菜单</span>
+            </button>
+            
+            <!-- 仪表盘 - 隐藏 -->
+            <section id="dashboard-section" class="hidden animate-fade-in">
+                <div class="mb-6">
+                    <h1 class="text-2xl font-bold mb-2">用户仪表盘</h1>
+                    <p class="text-gray-500">欢迎回来，用户名称！这是你的个人中心</p>
+                </div>
+                
+                <!-- 统计卡片 -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                    <div class="bg-white rounded-xl p-5 shadow-sm card-hover">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-sm">我的喜欢</p>
+                                <h3 class="text-2xl font-bold mt-1">24</h3>
+                            </div>
+                            <div class="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+                                <i class="fa fa-heart"></i>
+                            </div>
+                        </div>
+                        <div class="mt-4 flex items-center text-xs text-gray-500">
+                            <span>较上周 <span class="text-success font-medium">+12%</span></span>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl p-5 shadow-sm card-hover">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-sm">我的收藏</p>
+                                <h3 class="text-2xl font-bold mt-1">18</h3>
+                            </div>
+                            <div class="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+                                <i class="fa fa-bookmark"></i>
+                            </div>
+                        </div>
+                        <div class="mt-4 flex items-center text-xs text-gray-500">
+                            <span>较上周 <span class="text-success font-medium">+5%</span></span>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl p-5 shadow-sm card-hover">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-sm">我的下载</p>
+                                <h3 class="text-2xl font-bold mt-1">56</h3>
+                            </div>
+                            <div class="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+                                <i class="fa fa-download"></i>
+                            </div>
+                        </div>
+                        <div class="mt-4 flex items-center text-xs text-gray-500">
+                            <span>较上周 <span class="text-success font-medium">+23%</span></span>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl p-5 shadow-sm card-hover">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-sm">我的上传</p>
+                                <h3 class="text-2xl font-bold mt-1">12</h3>
+                            </div>
+                            <div class="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+                                <i class="fa fa-upload"></i>
+                            </div>
+                        </div>
+                        <div class="mt-4 flex items-center text-xs text-gray-500">
+                            <span>较上周 <span class="text-danger font-medium">-3%</span></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 最近活动 -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- 最近喜欢 -->
+                    <div class="lg:col-span-2">
+                        <div class="bg-white rounded-xl shadow-sm p-5 mb-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h2 class="font-bold text-lg">最近喜欢</h2>
+                                <a href="#liked" class="text-primary hover:underline text-sm">查看全部</a>
+                            </div>
+                            
+                            <div class="space-y-4">
+                                <div class="flex items-center space-x-3 p-2 hover:bg-neutral rounded-lg transition-colors">
+                                    <img src="https://picsum.photos/id/10/100/100" alt="壁纸缩略图" class="w-16 h-16 rounded-lg object-cover">
+                                    <div class="flex-1">
+                                        <h3 class="font-medium">高山湖泊风景</h3>
+                                        <div class="flex items-center text-sm text-gray-500">
+                                            <span>风景</span>
+                                            <span class="mx-2">•</span>
+                                            <span>3840 × 2160</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <button class="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-danger transition-colors">
+                                            <i class="fa fa-heart-o"></i>
+                                        </button>
+                                        <button class="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-primary transition-colors">
+                                            <i class="fa fa-download"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-center space-x-3 p-2 hover:bg-neutral rounded-lg transition-colors">
+                                    <img src="https://picsum.photos/id/20/100/100" alt="壁纸缩略图" class="w-16 h-16 rounded-lg object-cover">
+                                    <div class="flex-1">
+                                        <h3 class="font-medium">城市夜景</h3>
+                                        <div class="flex items-center text-sm text-gray-500">
+                                            <span>城市</span>
+                                            <span class="mx-2">•</span>
+                                            <span>3840 × 2160</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <button class="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-danger transition-colors">
+                                            <i class="fa fa-heart-o"></i>
+                                        </button>
+                                        <button class="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-primary transition-colors">
+                                            <i class="fa fa-download"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-center space-x-3 p-2 hover:bg-neutral rounded-lg transition-colors">
+                                    <img src="https://picsum.photos/id/42/100/100" alt="壁纸缩略图" class="w-16 h-16 rounded-lg object-cover">
+                                    <div class="flex-1">
+                                        <h3 class="font-medium">抽象艺术</h3>
+                                        <div class="flex items-center text-sm text-gray-500">
+                                            <span>抽象</span>
+                                            <span class="mx-2">•</span>
+                                            <span>3840 × 2160</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <button class="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-danger transition-colors">
+                                            <i class="fa fa-heart-o"></i>
+                                        </button>
+                                        <button class="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-primary transition-colors">
+                                            <i class="fa fa-download"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 最近下载 -->
+                        <div class="bg-white rounded-xl shadow-sm p-5">
+                            <div class="flex items-center justify-between mb-4">
+                                <h2 class="font-bold text-lg">最近下载</h2>
+                                <a href="#downloads" class="text-primary hover:underline text-sm">查看全部</a>
+                            </div>
+                            
+                            <div class="space-y-4">
+                                <div class="flex items-center space-x-3 p-2 hover:bg-neutral rounded-lg transition-colors">
+                                    <img src="https://picsum.photos/id/65/100/100" alt="壁纸缩略图" class="w-16 h-16 rounded-lg object-cover">
+                                    <div class="flex-1">
+                                        <h3 class="font-medium">野生动物</h3>
+                                        <div class="flex items-center text-sm text-gray-500">
+                                            <span>动物</span>
+                                            <span class="mx-2">•</span>
+                                            <span>3840 × 2160</span>
+                                            <span class="mx-2">•</span>
+                                            <span class="text-xs bg-success/10 text-success px-2 py-0.5 rounded-full">已下载</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <button class="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-primary transition-colors">
+                                            <i class="fa fa-download"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-center space-x-3 p-2 hover:bg-neutral rounded-lg transition-colors">
+                                    <img src="https://picsum.photos/id/96/100/100" alt="壁纸缩略图" class="w-16 h-16 rounded-lg object-cover">
+                                    <div class="flex-1">
+                                        <h3 class="font-medium">科技未来</h3>
+                                        <div class="flex items-center text-sm text-gray-500">
+                                            <span>科技</span>
+                                            <span class="mx-2">•</span>
+                                            <span>3840 × 2160</span>
+                                            <span class="mx-2">•</span>
+                                            <span class="text-xs bg-success/10 text-success px-2 py-0.5 rounded-full">已下载</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <button class="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-primary transition-colors">
+                                            <i class="fa fa-download"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 右侧栏 -->
+                    <div>
+                        <!-- 上传统计 -->
+                        <div class="bg-white rounded-xl shadow-sm p-5 mb-6">
+                            <h2 class="font-bold text-lg mb-4">上传统计</h2>
+                            <div class="space-y-4">
+                                <div>
+                                    <div class="flex justify-between text-sm mb-1">
+                                        <span>风景</span>
+                                        <span>5</span>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-2">
+                                        <div class="bg-primary h-2 rounded-full" style="width: 42%"></div>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <div class="flex justify-between text-sm mb-1">
+                                        <span>城市</span>
+                                        <span>3</span>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-2">
+                                        <div class="bg-secondary h-2 rounded-full" style="width: 25%"></div>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <div class="flex justify-between text-sm mb-1">
+                                        <span>抽象</span>
+                                        <span>2</span>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-2">
+                                        <div class="bg-accent h-2 rounded-full" style="width: 17%"></div>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <div class="flex justify-between text-sm mb-1">
+                                        <span>其他</span>
+                                        <span>2</span>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-2">
+                                        <div class="bg-info h-2 rounded-full" style="width: 17%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-4 pt-4 border-t border-gray-100">
+                                <div class="flex items-center justify-between text-sm">
+                                    <span>总上传量</span>
+                                    <span class="font-medium">12 张</span>
+                                </div>
+                                <div class="flex items-center justify-between text-sm text-gray-500 mt-1">
+                                    <span>总下载量</span>
+                                    <span>328 次</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 活动记录 -->
+                        <div class="bg-white rounded-xl shadow-sm p-5">
+                            <h2 class="font-bold text-lg mb-4">活动记录</h2>
+                            <div class="space-y-3">
+                                <div class="flex items-start space-x-3">
+                                    <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+                                        <i class="fa fa-heart"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm">喜欢了 <span class="font-medium">高山湖泊风景</span></p>
+                                        <p class="text-xs text-gray-500">10分钟前</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-start space-x-3">
+                                    <div class="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center text-success flex-shrink-0">
+                                        <i class="fa fa-download"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm">下载了 <span class="font-medium">野生动物</span></p>
+                                        <p class="text-xs text-gray-500">2小时前</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-start space-x-3">
+                                    <div class="w-8 h-8 rounded-full bg-warning/10 flex items-center justify-center text-warning flex-shrink-0">
+                                        <i class="fa fa-upload"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm">上传了 <span class="font-medium">森林深处</span></p>
+                                        <p class="text-xs text-gray-500">昨天</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-start space-x-3">
+                                    <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+                                        <i class="fa fa-bookmark"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm">收藏了 <span class="font-medium">抽象艺术</span></p>
+                                        <p class="text-xs text-gray-500">3天前</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- 我的喜欢 -->
+            <section id="liked-section" class="hidden animate-fade-in">
+                <div class="mb-6">
+                    <h1 class="text-2xl font-bold mb-2">我的喜欢</h1>
+                    <p class="text-gray-500">你喜欢的壁纸都会显示在这里</p>
+                </div>
+                
+                <!-- 加载状态 -->
+                <div id="liked-loading" class="text-center py-8">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <p class="mt-2 text-gray-500">加载中...</p>
+                </div>
+                
+                <!-- 空状态 -->
+                <div id="liked-empty" class="text-center py-12 hidden">
+                    <div class="text-gray-400 text-6xl mb-4">
+                        <i class="fa fa-heart-o"></i>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-600 mb-2">还没有喜欢的壁纸</h3>
+                    <p class="text-gray-500 mb-4">去首页发现更多精美壁纸吧</p>
+                    <a href="index.php" class="inline-block bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors">
+                        去首页看看
+                    </a>
+                </div>
+                
+                <!-- 壁纸网格容器 -->
+                <div id="liked-wallpapers-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 hidden">
+                    <!-- 动态加载的壁纸卡片将在这里显示 -->
+                </div>
+            </section>
+
+            <!-- 我的收藏 -->
+            <section id="collections-section" class="hidden animate-fade-in">
+                <!-- JSDoc: 我的收藏区块，后续渲染用户收藏的壁纸列表 -->
+                <div class="mb-6">
+                    <h1 class="text-2xl font-bold mb-2">我的收藏</h1>
+                    <p class="text-gray-500">你收藏的壁纸都会显示在这里</p>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- 这里后续渲染收藏壁纸卡片 -->
+                </div>
+            </section>
+
+            <!-- 我的下载 -->
+            <section id="downloads-section" class="hidden animate-fade-in">
+                <!-- JSDoc: 我的下载区块，后续渲染用户下载的壁纸列表 -->
+                <div class="mb-6">
+                    <h1 class="text-2xl font-bold mb-2">我的下载</h1>
+                    <p class="text-gray-500">你下载过的壁纸都会显示在这里</p>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- 这里后续渲染下载壁纸卡片 -->
+                </div>
+            </section>
+
+            <!-- 我的上传 -->
+            <section id="uploads-section" class="hidden animate-fade-in">
+                <!-- JSDoc: 我的上传区块，后续渲染用户上传的壁纸列表 -->
+                <div class="mb-6">
+                    <h1 class="text-2xl font-bold mb-2">我的上传</h1>
+                    <p class="text-gray-500">你上传的壁纸都会显示在这里</p>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- 这里后续渲染上传壁纸卡片 -->
+                </div>
+            </section>
+
+            <!-- 浏览历史 - 完全隐藏 -->
+            <!-- <section id="history-section" class="hidden animate-fade-in">
+                <div class="mb-6">
+                    <h1 class="text-2xl font-bold mb-2">浏览历史</h1>
+                    <p class="text-gray-500">你最近浏览的壁纸都会显示在这里</p>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                </div>
+            </section> -->
+
+            <!-- 账户设置 -->
+            <section id="settings-section" class="animate-fade-in">
+                <!-- JSDoc: 账户设置区块，资料修改、密码修改、头像上传 -->
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold mb-3 text-gray-800">账户设置</h1>
+                    <p class="text-gray-600 text-lg">管理你的个人资料、密码和头像设置</p>
+                </div>
+                <div class="bg-white rounded-2xl shadow-lg p-8 max-w-4xl border border-gray-100">
+                    <!-- 资料修改表单 -->
+                    <form id="profile-form" class="mb-12">
+                        <div class="border-b border-gray-200 pb-6 mb-8">
+                            <h2 class="text-2xl font-semibold text-gray-800 mb-2">基本资料</h2>
+                            <p class="text-gray-600">更新你的个人信息</p>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">昵称</label>
+                                <input type="text" id="profile-username" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors" placeholder="请输入昵称" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">邮箱</label>
+                                <input type="email" id="profile-email" class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed" placeholder="请输入邮箱地址" readonly disabled>
+                                <p class="text-xs text-gray-500 mt-1">邮箱地址不可修改</p>
+                            </div>
+                        </div>
+                        <div class="mb-6 text-sm text-success hidden" id="profile-success"></div>
+                        <div class="mb-6 text-sm text-danger hidden" id="profile-error"></div>
+                        <button type="submit" class="bg-primary hover:bg-primary/90 text-white px-8 py-3 rounded-lg font-medium transition-colors inline-flex items-center">
+                            <i class="fa fa-save mr-2"></i>保存昵称
+                        </button>
+                    </form>
+                    <!-- 密码修改表单 -->
+                    <form id="password-form" class="mb-12">
+                        <div class="border-b border-gray-200 pb-6 mb-8">
+                            <h2 class="text-2xl font-semibold text-gray-800 mb-2">修改密码</h2>
+                            <p class="text-gray-600">更新你的登录密码以保护账户安全</p>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">旧密码</label>
+                                <input type="password" id="old-password" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors" placeholder="请输入当前密码" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">新密码</label>
+                                <input type="password" id="new-password" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors" placeholder="请输入新密码" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">确认新密码</label>
+                                <input type="password" id="confirm-password" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors" placeholder="请再次输入新密码" required>
+                            </div>
+                        </div>
+                        <div class="mb-6 text-sm text-success hidden" id="password-success"></div>
+                        <div class="mb-6 text-sm text-danger hidden" id="password-error"></div>
+                        <button type="submit" class="bg-primary hover:bg-primary/90 text-white px-8 py-3 rounded-lg font-medium transition-colors inline-flex items-center">
+                            <i class="fa fa-lock mr-2"></i>修改密码
+                        </button>
+                    </form>
+                    <!-- 头像上传 -->
+                    <form id="avatar-form" enctype="multipart/form-data">
+                        <div class="border-b border-gray-200 pb-6 mb-8">
+                            <h2 class="text-2xl font-semibold text-gray-800 mb-2">头像设置</h2>
+                            <p class="text-gray-600">上传你的个人头像，支持 JPG、PNG 格式</p>
+                        </div>
+                        <div class="flex flex-col md:flex-row md:items-center md:space-x-6 space-y-4 md:space-y-0 mb-8">
+                            <div class="relative flex-shrink-0">
+                                <img id="avatar-preview" src="/static/icons/default-avatar.svg" alt="当前头像" class="w-24 h-24 rounded-full border-4 border-primary shadow-lg user-avatar object-cover">
+                                <div class="absolute -bottom-2 -right-2 w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white">
+                                    <i class="fa fa-camera text-sm"></i>
+                                </div>
+                            </div>
+                            <div>
+                                <input type="file" id="avatar-input" name="avatar" accept="image/*" class="hidden">
+                                <button type="button" id="choose-avatar" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center border border-gray-300">
+                                    <i class="fa fa-upload mr-2"></i>选择头像
+                                </button>
+                                <p class="text-sm text-gray-500 mt-2">建议尺寸：200x200 像素，最大 2MB</p>
+                            </div>
+                        </div>
+                        <div class="mb-6 text-sm text-success hidden" id="avatar-success"></div>
+                        <div class="mb-6 text-sm text-danger hidden" id="avatar-error"></div>
+                        <button type="submit" class="bg-primary hover:bg-primary/90 text-white px-8 py-3 rounded-lg font-medium transition-colors inline-flex items-center">
+                            <i class="fa fa-cloud-upload mr-2"></i>上传头像
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- 头像裁剪弹窗 -->
+            <div id="avatar-cropper-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
+                <div class="bg-white rounded-xl p-6 shadow-lg flex flex-col items-center">
+                    <h2 class="text-lg font-bold mb-4">裁剪头像</h2>
+                    <div class="w-64 h-64 mb-4 flex items-center justify-center bg-neutral-dark rounded-lg overflow-hidden">
+                        <img id="cropper-image" src="" alt="裁剪图片" class="max-w-full max-h-full">
+                    </div>
+                    <div class="flex space-x-4">
+                        <button id="cropper-cancel" class="px-6 py-2 border rounded-lg">取消</button>
+                        <button id="cropper-confirm" class="px-6 py-2 bg-primary text-white rounded-lg">确定裁剪</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 上传壁纸模态框（与首页一致） -->
+            <div id="dashboard-upload-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
+                <div class="bg-white rounded-xl w-full max-w-2xl mx-4 transform transition-all duration-300 scale-95 opacity-0" id="dashboard-upload-modal-content">
+                    <div class="relative p-6 max-h-[80vh] overflow-y-auto">
+                        <button id="dashboard-close-upload-modal" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700">
+                            <i class="fa fa-times text-xl"></i>
+                        </button>
+                        <h2 class="text-2xl font-bold text-center mb-6">上传壁纸</h2>
+                        <form id="dashboard-upload-form">
+                            <div class="mb-6">
+                                <div id="dashboard-drop-area" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer">
+                                    <i class="fa fa-cloud-upload text-4xl text-gray-400 mb-4"></i>
+                                    <p class="text-gray-600 mb-2">点击或拖拽文件到此处上传</p>
+                                    <p class="text-sm text-gray-500">支持 JPG, PNG, WebP 格式，最大 10MB</p>
+                                    <input type="file" id="dashboard-file-input" class="hidden" accept="image/*">
+                                    <button type="button" id="dashboard-browse-btn" class="mt-4 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">选择文件</button>
+                                </div>
+                                <div id="dashboard-preview-container" class="hidden mt-4">
+                                    <img id="dashboard-image-preview" src="" alt="预览图" class="max-h-60 mx-auto rounded-lg object-contain">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                <div>
+                                    <label for="dashboard-wallpaper-title" class="block text-sm font-medium text-gray-700 mb-1">壁纸标题</label>
+                                    <input type="text" id="dashboard-wallpaper-title" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" placeholder="请输入壁纸标题">
+                                </div>
+                                <div>
+                                    <label for="dashboard-wallpaper-category" class="block text-sm font-medium text-gray-700 mb-1">壁纸分类</label>
+                                    <select id="dashboard-wallpaper-category" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                                        <option value="">选择分类</option>
+                                        <option value="风景">风景</option>
+                                        <option value="动物">动物</option>
+                                        <option value="动漫">动漫</option>
+                                        <option value="城市">城市</option>
+                                        <option value="抽象">抽象</option>
+                                        <option value="科技">科技</option>
+                                        <option value="创意">创意</option>
+                                        <option value="美食">美食</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="mb-6">
+                                <label for="dashboard-wallpaper-tags" class="block text-sm font-medium text-gray-700 mb-1">标签（用逗号分隔）</label>
+                                <input type="text" id="dashboard-wallpaper-tags" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" placeholder="例如：自然,山脉,湖泊">
+                            </div>
+                            <div class="flex justify-end space-x-4 mt-8">
+                                <button type="button" id="dashboard-cancel-upload" class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-neutral-dark transition-colors">关闭</button>
+                                <button type="submit" id="dashboard-submit-upload" class="px-6 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors">提交</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+
+        </main>
+    </div>
+
+    <!-- JavaScript -->
+    <!-- 本地二维码库 -->
+    <script src="static/js/qrious.min.js"></script>
+    <script src="static/js/cropper.min.js"></script>
+    <!-- 引入自定义JS -->
+    <script src="static/js/config.js"></script>
+    <script src="static/js/utils.js"></script>
+    <script src="static/js/modals.js"></script>
+    <script src="static/js/user-menu.js"></script>
+    <script src="static/js/auth.js"></script> <!-- 2025-06-26 新增：用户认证模块，解决退出登录问题 -->
+    <script src="static/js/image-token-manager.js"></script> <!-- 2025-01-27 新增：图片Token管理器 -->
+    <script src="static/js/wallpaper-detail.js"></script> <!-- 2025-01-27 新增：壁纸详情模块 -->
+    <script src="static/js/dashboard.js"></script> <!-- 2024-07-29 新增：仪表盘逻辑 -->
+    <script src="static/js/membership-status.js?v=20250626c"></script> <!-- 2025-01-27 新增：会员管理器 -->
+    <script src="static/js/admin-exile.js"></script> <!-- 2024-07-29 新增：管理员流放管理逻辑 -->
+    <script src="static/js/membership.js"></script> <!-- 2025-01-27 新增：会员升级功能 -->
+    <script src="static/js/membership-codes.js"></script> <!-- 2025-01-27 新增：会员码管理功能 -->
+    <script>
+        // 2025-01-27 修复重复初始化问题：统一在此处初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('[Dashboard] 页面加载完成，初始化模块');
+            
+            // 初始化Dashboard相关逻辑
+            if (typeof Dashboard !== 'undefined') {
+                Dashboard.init();
+            }
+            
+            // 初始化WallpaperDetail模块
+            if (typeof WallpaperDetail !== 'undefined') {
+                WallpaperDetail.init();
+            }
+            
+            // 检查用户是否为管理员，显示/隐藏管理员功能
+            if (typeof checkAndShowAdminFeatures === 'function') {
+                checkAndShowAdminFeatures();
+            }
+            
+            // 会员状态管理器将自动初始化
+            
+            // 移动端侧边栏控制
+            const mobileButton = document.getElementById('mobile-sidebar-button');
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobile-sidebar-overlay');
+            
+            function showMobileSidebar() {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            }
+            
+            function hideMobileSidebar() {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+            
+            if (mobileButton) {
+                mobileButton.addEventListener('click', showMobileSidebar);
+            }
+            
+            if (overlay) {
+                overlay.addEventListener('click', hideMobileSidebar);
+            }
+            
+            // ESC键关闭侧边栏
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && !overlay.classList.contains('hidden')) {
+                    hideMobileSidebar();
+                }
+            });
+
+        });
+    </script>
+<!-- 壁纸详情模态框 -->
+<div id="wallpaper-detail-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
+    <div id="wallpaper-detail-modal-content" class="bg-white rounded-xl p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-xl font-bold">壁纸详情</h3>
+            <button id="close-detail-modal" class="text-gray-500 hover:text-gray-700">
+                <i class="fa fa-times text-xl"></i>
+            </button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- 壁纸预览 -->
+            <div class="relative">
+                <img id="wallpaper-preview" src="" alt="壁纸预览" class="w-full h-auto rounded-lg">
+                <div class="absolute bottom-4 right-4 space-x-2">
+                    <button id="download-wallpaper" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                        <i class="fa fa-download mr-2"></i>下载
+                    </button>
+                    <button id="share-wallpaper" class="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                        <i class="fa fa-share-alt mr-2"></i>分享
+                    </button>
+                </div>
+            </div>
+            <!-- 壁纸信息 -->
+            <div>
+                <div class="mb-4">
+                    <h4 class="font-medium mb-2">壁纸信息</h4>
+                    <div class="space-y-2 text-sm">
+                        <p>分辨率：<span id="wallpaper-resolution"></span></p>
+                        <p>文件大小：<span id="wallpaper-size"></span></p>
+                        <p>上传时间：<span id="wallpaper-upload-time"></span></p>
+                        <p>下载次数：<span id="wallpaper-downloads"></span></p>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <h4 class="font-medium mb-2">标签</h4>
+                    <div id="wallpaper-tags" class="flex flex-wrap gap-2"></div>
+                </div>
+                <div>
+                    <h4 class="font-medium mb-2">分类</h4>
+                    <div id="wallpaper-categories" class="flex flex-wrap gap-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 修改密码模态框 -->
+<div id="change-password-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
+    <div id="change-password-modal-content" class="bg-white rounded-xl p-6 w-full max-w-md mx-4 transform scale-95 opacity-0 transition-all duration-300">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-xl font-bold">修改密码</h3>
+            <button id="close-change-password-modal" class="text-gray-500 hover:text-gray-700">
+                <i class="fa fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="space-y-4">
+            <div>
+                <label for="current-password" class="block text-sm font-medium text-gray-700 mb-1">当前密码</label>
+                <input type="password" id="current-password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" required>
+            </div>
+            
+            <div>
+                <label for="new-password" class="block text-sm font-medium text-gray-700 mb-1">新密码</label>
+                <input type="password" id="new-password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" required>
+                <p class="text-xs text-gray-500 mt-1">密码必须至少4位</p>
+            </div>
+            
+            <div>
+                <label for="confirm-new-password" class="block text-sm font-medium text-gray-700 mb-1">确认新密码</label>
+                <input type="password" id="confirm-new-password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" required>
+            </div>
+        </div>
+        
+        <div class="mt-6 flex justify-end space-x-3">
+            <button id="save-new-password" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                保存更改
+            </button>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
+
+
+<!-- 会员升级模态框 -->
+<div id="membership-upgrade-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
+    <div class="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+        <div class="text-center mb-6">
+            <i class="fa fa-gift text-primary text-3xl mb-2"></i>
+            <h3 class="text-xl font-bold mb-2">会员升级</h3>
+            <p class="text-gray-600">请输入会员码完成升级</p>
+        </div>
+        
+        <div class="mb-6">
+            <label for="membership-code-input" class="block text-sm font-medium text-gray-700 mb-2">
+                会员码 <span class="text-red-500">*</span>
+            </label>
+            <input type="text" 
+                   id="membership-code-input" 
+                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors" 
+                   placeholder="请输入12位会员码" 
+                   maxlength="12"
+                   autocomplete="off">
+            <div id="code-validation-message" class="mt-2 text-sm hidden"></div>
+        </div>
+        
+        <div class="flex space-x-3 mb-4">
+            <button id="redeem-membership-btn" 
+                    class="flex-1 bg-primary text-white py-3 px-4 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled>
+                <i class="fa fa-check mr-2"></i>立即兑换
+            </button>
+            <button id="get-membership-code-btn" 
+                    class="flex-1 bg-gray-500 text-white py-3 px-4 rounded-lg hover:bg-gray-600 transition-colors">
+                <i class="fa fa-shopping-cart mr-2"></i>获取会员码
+            </button>
+        </div>
+        
+        <button id="close-membership-modal" 
+                class="w-full text-gray-500 hover:text-gray-700 py-2 transition-colors">
+            取消
+        </button>
+    </div>
+</div>
+
+<!-- 升级成功模态框 -->
+<div id="upgrade-success-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
+    <div class="bg-white rounded-xl p-8 w-full max-w-md mx-4 text-center">
+        <div class="mb-6">
+            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fa fa-check text-green-500 text-2xl"></i>
+            </div>
+            <h3 class="text-xl font-bold text-gray-800 mb-2">升级成功！</h3>
+            <p id="upgrade-success-message" class="text-gray-600">恭喜您成功升级为会员</p>
+        </div>
+        
+        <div id="upgrade-benefits-summary" class="bg-gray-50 rounded-lg p-4 mb-6">
+            <!-- 动态显示升级后的权益 -->
+        </div>
+        
+        <button id="close-success-modal" 
+                class="w-full bg-primary text-white py-3 px-4 rounded-lg hover:bg-primary/90 transition-colors">
+            开始享受权益
+        </button>
+    </div>
+</div>
+
+<!-- 会员码管理模态框 -->
+<div id="membership-codes-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
+    <div class="bg-white rounded-xl p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-xl font-bold">会员码管理</h3>
+            <button id="close-membership-codes-modal" class="text-gray-500 hover:text-gray-700">
+                <i class="fa fa-times text-xl"></i>
+            </button>
+        </div>
+        
+        <!-- 生成会员码表单 -->
+        <div class="bg-gray-50 p-4 rounded-lg mb-6">
+            <h4 class="font-medium mb-4">生成新会员码</h4>
+            <form id="generate-codes-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label for="code-type" class="block text-sm font-medium text-gray-700 mb-1">会员类型</label>
+                    <select id="code-type" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" required>
+                        <option value="">请选择类型</option>
+                        <option value="monthly">1元会员 (30天)</option>
+                        <option value="permanent">永久会员</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="code-count" class="block text-sm font-medium text-gray-700 mb-1">生成数量</label>
+                    <input type="number" id="code-count" min="1" max="100" value="1" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" required>
+                </div>
+                <div class="flex items-end">
+                    <button type="submit" class="w-full bg-primary text-white py-2 px-4 rounded-lg hover:bg-primary/90 transition-colors">
+                        <i class="fa fa-plus mr-2"></i>生成会员码
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- 生成结果显示 -->
+        <div id="generated-codes-result" class="hidden mb-6">
+            <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h5 class="font-medium text-green-800 mb-2">生成成功</h5>
+                <div id="generated-codes-list" class="bg-white p-3 rounded border font-mono text-sm max-h-32 overflow-y-auto"></div>
+                <button id="copy-codes" class="mt-2 text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition-colors">
+                    <i class="fa fa-copy mr-1"></i>复制所有会员码
+                </button>
+            </div>
+        </div>
+        
+        <!-- 会员码统计 -->
+        <div class="mb-6">
+            <h4 class="font-medium mb-3">会员码统计</h4>
+            <div id="codes-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <!-- 统计数据将通过JavaScript动态加载 -->
+            </div>
+        </div>
+        
+        <!-- 最近生成的会员码列表 -->
+        <div>
+            <div class="mb-3">
+                <div class="flex justify-between items-center mb-2">
+                    <h4 class="font-medium">最近生成的会员码</h4>
+                    <div class="flex items-center space-x-2">
+                        <button id="batch-delete-btn" class="px-3 py-1 text-sm bg-red-500 text-white rounded-md hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            <i class="fa fa-trash mr-1"></i>批量删除
+                        </button>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <label for="type-filter" class="text-sm font-medium text-gray-700">会员类型:</label>
+                        <select id="type-filter" class="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="all">全部</option>
+                            <option value="monthly">1元会员</option>
+                            <option value="permanent">永久会员</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <label for="codes-filter" class="text-sm font-medium text-gray-700">状态筛选:</label>
+                        <select id="codes-filter" class="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="all">全部</option>
+                            <option value="active">可用</option>
+                            <option value="used">已用</option>
+                            <option value="expired">过期</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full border border-gray-200 rounded-lg">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                                <input type="checkbox" id="select-all-codes" class="mr-2">
+                                <label for="select-all-codes">全选</label>
+                            </th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">会员码</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">类型</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">状态</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">生成时间</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">过期时间</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recent-codes-list">
+                        <!-- 会员码列表将通过JavaScript动态加载 -->
+                    </tbody>
+                </table>
+            </div>
+            <!-- 分页控件 -->
+            <div class="flex justify-between items-center mt-4 pt-4 border-t border-gray-200">
+                <div id="pagination-info" class="text-sm text-gray-600">
+                    显示 0-0 条，共 0 条
+                </div>
+                <div class="flex space-x-2">
+                    <button id="prev-page" class="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                        上一页
+                    </button>
+                    <button id="next-page" class="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                        下一页
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+
+
+<!-- 会员升级模态框 -->
+<div id="membershipModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-white rounded-2xl p-8 max-w-md w-full">
+            <div class="text-center mb-6">
+                <h3 class="text-2xl font-bold text-gray-800 mb-2">会员升级</h3>
+                <p class="text-gray-600">请输入会员码完成升级</p>
+            </div>
+            
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">会员码</label>
+                <input type="text" id="membershipCode" 
+                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                       placeholder="请输入12位会员码" maxlength="12">
+            </div>
+            
+            <div class="flex gap-3">
+                <button id="upgradeBtn" 
+                        class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-lg transition-colors">
+                    升级
+                </button>
+                <button id="getCodeBtn" 
+                        class="flex-1 bg-red-500 hover:bg-red-600 text-white font-medium py-3 px-6 rounded-lg transition-colors">
+                    获取会员码
+                </button>
+            </div>
+            
+            <button id="closeMembershipModal" 
+                    class="w-full mt-4 text-gray-500 hover:text-gray-700 py-2">
+                取消
+            </button>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+
+
+<!-- 会员升级模态框 -->
+<div id="membership-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
+    <div class="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+        <h3 class="text-lg font-bold mb-4">升级会员</h3>
+        <div class="mb-4">
+            <label for="membership-code" class="block text-sm font-medium text-gray-700 mb-2">请输入会员码</label>
+            <input type="text" id="membership-code" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" placeholder="输入12位会员码" maxlength="12">
+        </div>
+        <div class="flex space-x-3">
+            <button id="upgrade-membership" class="flex-1 bg-primary text-white py-2 px-4 rounded-lg hover:bg-primary/90 transition-colors">升级</button>
+            <button id="get-membership-code" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors">获取会员码</button>
+            <button id="cancel-membership" class="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400 transition-colors">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- 会员码管理模态框 -->
+<div id="membership-codes-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
+    <div class="bg-white rounded-xl p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-xl font-bold">会员码管理</h3>
+            <button id="close-membership-codes-modal" class="text-gray-500 hover:text-gray-700">
+                <i class="fa fa-times text-xl"></i>
+            </button>
+        </div>
+        
+        <!-- 生成会员码表单 -->
+        <div class="bg-gray-50 p-4 rounded-lg mb-6">
+            <h4 class="font-medium mb-4">生成新会员码</h4>
+            <form id="generate-codes-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label for="code-type" class="block text-sm font-medium text-gray-700 mb-1">会员类型</label>
+                    <select id="code-type" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" required>
+                        <option value="">请选择类型</option>
+                        <option value="monthly">1元会员 (30天)</option>
+                        <option value="permanent">永久会员</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="code-count" class="block text-sm font-medium text-gray-700 mb-1">生成数量</label>
+                    <input type="number" id="code-count" min="1" max="100" value="1" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" required>
+                </div>
+                <div class="flex items-end">
+                    <button type="submit" class="w-full bg-primary text-white py-2 px-4 rounded-lg hover:bg-primary/90 transition-colors">
+                        <i class="fa fa-plus mr-2"></i>生成会员码
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- 生成结果显示 -->
+        <div id="generated-codes-result" class="hidden mb-6">
+            <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h5 class="font-medium text-green-800 mb-2">生成成功</h5>
+                <div id="generated-codes-list" class="bg-white p-3 rounded border font-mono text-sm max-h-32 overflow-y-auto"></div>
+                <button id="copy-codes" class="mt-2 text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition-colors">
+                    <i class="fa fa-copy mr-1"></i>复制所有会员码
+                </button>
+            </div>
+        </div>
+        
+        <!-- 会员码统计 -->
+        <div class="mb-6">
+            <h4 class="font-medium mb-3">会员码统计</h4>
+            <div id="codes-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <!-- 统计数据将通过JavaScript动态加载 -->
+            </div>
+        </div>
+        
+        <!-- 最近生成的会员码列表 -->
+        <div>
+            <h4 class="font-medium mb-3">最近生成的会员码</h4>
+            <div class="overflow-x-auto">
+                <table class="w-full border border-gray-200 rounded-lg">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                                <input type="checkbox" id="select-all-codes" class="rounded">
+                            </th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">会员码</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">类型</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">状态</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">生成时间</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">过期时间</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recent-codes-list">
+                        <!-- 会员码列表将通过JavaScript动态加载 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+
+
+<!-- 会员升级模态框 -->
+<div id="membershipModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-white rounded-2xl p-8 max-w-md w-full">
+            <div class="text-center mb-6">
+                <h3 class="text-2xl font-bold text-gray-800 mb-2">会员升级</h3>
+                <p class="text-gray-600">请输入会员码完成升级</p>
+            </div>
+            
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">会员码</label>
+                <input type="text" id="membershipCode" 
+                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                       placeholder="请输入12位会员码" maxlength="12">
+            </div>
+            
+            <div class="flex gap-3">
+                <button id="upgradeBtn" 
+                        class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-lg transition-colors">
+                    升级
+                </button>
+                <button id="getCodeBtn" 
+                        class="flex-1 bg-red-500 hover:bg-red-600 text-white font-medium py-3 px-6 rounded-lg transition-colors">
+                    获取会员码
+                </button>
+            </div>
+            
+            <button id="closeMembershipModal" 
+                    class="w-full mt-4 text-gray-500 hover:text-gray-700 py-2">
+                取消
+            </button>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+
+
+<!-- 会员升级模态框 -->
+<div id="membership-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
+    <div class="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+        <h3 class="text-lg font-bold mb-4">升级会员</h3>
+        <div class="mb-4">
+            <label for="membership-code" class="block text-sm font-medium text-gray-700 mb-2">请输入会员码</label>
+            <input type="text" id="membership-code" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" placeholder="输入12位会员码" maxlength="12">
+        </div>
+        <div class="flex space-x-3">
+            <button id="upgrade-membership" class="flex-1 bg-primary text-white py-2 px-4 rounded-lg hover:bg-primary/90 transition-colors">升级</button>
+            <button id="get-membership-code" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors">获取会员码</button>
+            <button id="cancel-membership" class="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400 transition-colors">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- 会员码管理模态框 -->
+<div id="membership-codes-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
+    <div class="bg-white rounded-xl p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-xl font-bold">会员码管理</h3>
+            <button id="close-membership-codes-modal" class="text-gray-500 hover:text-gray-700">
+                <i class="fa fa-times text-xl"></i>
+            </button>
+        </div>
+        
+        <!-- 生成会员码表单 -->
+        <div class="bg-gray-50 p-4 rounded-lg mb-6">
+            <h4 class="font-medium mb-4">生成新会员码</h4>
+            <form id="generate-codes-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label for="code-type" class="block text-sm font-medium text-gray-700 mb-1">会员类型</label>
+                    <select id="code-type" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" required>
+                        <option value="">请选择类型</option>
+                        <option value="monthly">1元会员 (30天)</option>
+                        <option value="permanent">永久会员</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="code-count" class="block text-sm font-medium text-gray-700 mb-1">生成数量</label>
+                    <input type="number" id="code-count" min="1" max="100" value="1" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" required>
+                </div>
+                <div class="flex items-end">
+                    <button type="submit" class="w-full bg-primary text-white py-2 px-4 rounded-lg hover:bg-primary/90 transition-colors">
+                        <i class="fa fa-plus mr-2"></i>生成会员码
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- 生成结果显示 -->
+        <div id="generated-codes-result" class="hidden mb-6">
+            <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h5 class="font-medium text-green-800 mb-2">生成成功</h5>
+                <div id="generated-codes-list" class="bg-white p-3 rounded border font-mono text-sm max-h-32 overflow-y-auto"></div>
+                <button id="copy-codes" class="mt-2 text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition-colors">
+                    <i class="fa fa-copy mr-1"></i>复制所有会员码
+                </button>
+            </div>
+        </div>
+        
+        <!-- 会员码统计 -->
+        <div class="mb-6">
+            <h4 class="font-medium mb-3">会员码统计</h4>
+            <div id="codes-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <!-- 统计数据将通过JavaScript动态加载 -->
+            </div>
+        </div>
+        
+        <!-- 最近生成的会员码列表 -->
+        <div>
+            <h4 class="font-medium mb-3">最近生成的会员码</h4>
+            <div class="overflow-x-auto">
+                <table class="w-full border border-gray-200 rounded-lg">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">会员码</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">类型</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">状态</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">生成时间</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">过期时间</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recent-codes-list">
+                        <!-- 会员码列表将通过JavaScript动态加载 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+
+
+<!-- 会员升级模态框 -->
+<div id="membershipModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-white rounded-2xl p-8 max-w-md w-full">
+            <div class="text-center mb-6">
+                <h3 class="text-2xl font-bold text-gray-800 mb-2">会员升级</h3>
+                <p class

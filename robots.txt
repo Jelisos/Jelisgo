@@ -1,0 +1,131 @@
+# Robots.txt for Jelisgo.cn - 壁纸喵 ° 不吃鱼
+# SEO优化配置 - 生成时间: 2025-01-27
+
+# 允许所有搜索引擎访问公开内容
+User-agent: *
+
+# 允许索引的主要页面
+Allow: /
+Allow: /index.php
+Allow: /yulan.php
+
+# 允许索引静态资源
+Allow: /static/css/
+Allow: /static/js/
+Allow: /static/images/
+Allow: /static/icons/
+Allow: /static/fonts/
+Allow: /favicon.ico
+Allow: /Jelisgo.ico
+
+# 禁止访问敏感API接口
+Disallow: /api/
+Disallow: /api/*
+
+# 禁止访问管理后台
+Disallow: /admin/
+Disallow: /admin/*
+Disallow: /admin_*.php
+Disallow: /admin_*.php
+
+# 禁止访问配置文件和数据库相关
+Disallow: /config/
+Disallow: /config/*
+Disallow: /*.sql
+Disallow: /sql/
+Disallow: /scripts/
+Disallow: /数据库临时脚本/
+
+# 禁止访问用户上传和头像目录
+Disallow: /static/uploads/
+Disallow: /static/avatar/
+Disallow: /static/yhsc/
+
+# 禁止访问开发和测试文件
+Disallow: /test/
+Disallow: /logic/
+Disallow: /txt-md/
+Disallow: /*.py
+Disallow: /*.bat
+Disallow: /compress_wallpapers.py
+Disallow: /update_*.py
+Disallow: /*.txt
+Disallow: /交互记录.txt
+Disallow: /开发进度.txt
+
+# 禁止访问版本控制和部署文件
+Disallow: /.git/
+Disallow: /.gitignore
+Disallow: /.trae/
+Disallow: /.vercel/
+Disallow: /cookie.txt
+
+# 禁止访问备份文件
+Disallow: /*.backup
+Disallow: /*.bak
+Disallow: /*_backup.*
+Disallow: /wallpapers_import_*.sql
+
+# 禁止访问日志文件
+Disallow: /*.log
+Disallow: /logs/
+
+# 禁止访问临时文件
+Disallow: /*~
+Disallow: /*.tmp
+Disallow: /*.temp
+
+# 特定搜索引擎优化
+# 百度搜索引擎
+User-agent: Baiduspider
+Allow: /
+Allow: /static/images/
+Disallow: /api/
+Disallow: /admin/
+Disallow: /config/
+
+# 谷歌搜索引擎
+User-agent: Googlebot
+Allow: /
+Allow: /static/
+Disallow: /api/
+Disallow: /admin/
+Disallow: /config/
+
+# 360搜索引擎
+User-agent: 360Spider
+Allow: /
+Allow: /static/images/
+Disallow: /api/
+Disallow: /admin/
+Disallow: /config/
+
+# 搜狗搜索引擎
+User-agent: Sogou
+Allow: /
+Allow: /static/images/
+Disallow: /api/
+Disallow: /admin/
+Disallow: /config/
+
+# 禁止恶意爬虫
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+# 爬取延迟设置（秒）
+Crawl-delay: 1
+
+# 站点地图位置
+Sitemap: https://Jelisgo.cn/sitemap.xml
+
+# 主机设置
+Host: https://Jelisgo.cn

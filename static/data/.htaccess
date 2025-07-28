@@ -1,0 +1,20 @@
+# 数据库迁移 - 第一阶段安全防护
+# 禁止直接访问敏感数据文件
+# 创建时间: 2025-01-27
+
+# 拒绝所有直接访问
+Order Deny,Allow
+Deny from all
+
+# 设置安全响应头
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options nosniff
+    Header always set X-Frame-Options DENY
+    Header always set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# 防止目录浏览
+Options -Indexes
+
+# 错误页面
+ErrorDocument 403 "Access Denied - Data files are protected"

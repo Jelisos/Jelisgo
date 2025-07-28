@@ -1,0 +1,52 @@
+# 忽略静态资源目录
+static/preview/
+static/wallpapers/
+static/uploads
+static/yhsc
+
+# 忽略日志和临时文件
+logs/
+test/
+logic/
+jelisgo/
+txt-md/
+保留测试脚本/
+数据库临时脚本/
+
+# 忽略配置文件和敏感信息
+config.local.php
+*.env
+.env
+
+# 忽略编辑器和IDE文件
+.vscode/
+.idea/
+*.sublime-*
+
+# 忽略操作系统文件
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# 忽略依赖包和库文件
+vendor/
+node_modules/
+composer.lock
+package-lock.json
+yarn.lock
+
+# 忽略缓存文件
+*.cache
+.sass-cache/
+*.log
+
+# 忽略数据库备份文件
+*.sql
+*.bak
+*.backup
+
+# 忽略临时生成的文件
+*.tmp
+*.temp
+temp/

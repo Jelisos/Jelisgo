@@ -1,0 +1,14 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="1200" height="630" fill="#1A73E8"/>
+<circle cx="600" cy="315" r="100" fill="white" fill-opacity="0.1"/>
+<circle cx="600" cy="315" r="60" fill="white"/>
+<path d="M570 285H630V345H570V285Z" fill="#1A73E8"/>
+<path d="M585 300H615V330H585V300Z" fill="white"/>
+<rect x="540" y="300" width="15" height="30" fill="white"/>
+<rect x="645" y="300" width="15" height="30" fill="white"/>
+<rect x="585" y="270" width="30" height="15" fill="white"/>
+<rect x="585" y="345" width="30" height="15" fill="white"/>
+<text x="600" y="420" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="white" text-anchor="middle">壁纸喵 ° 不吃鱼</text>
+<text x="600" y="470" font-family="Arial, sans-serif" font-size="24" fill="white" fill-opacity="0.8" text-anchor="middle">你的专属壁纸库</text>
+<text x="600" y="520" font-family="Arial, sans-serif" font-size="18" fill="white" fill-opacity="0.6" text-anchor="middle">海量高清壁纸免费下载</text>
+</svg>
