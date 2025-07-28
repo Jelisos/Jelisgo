@@ -50,3 +50,8 @@ yarn.lock
 *.tmp
 *.temp
 temp/
+
+# 忽略压缩包文件
+static/preview.zip
+static/wallpapers.zip
+*.zip
