@@ -35,13 +35,14 @@ function logImageAccess($imagePath, $result = 'success', $error = '') {
 
 // 防盗链检查
 function checkReferer() {
+    // 基本允许的域名
     $allowedDomains = [
         'localhost',
-        '127.0.0.1',
-        $_SERVER['HTTP_HOST'] ?? ''
+        '127.0.0.1'
     ];
     
     $referer = $_SERVER['HTTP_REFERER'] ?? '';
+    $host = $_SERVER['HTTP_HOST'] ?? '';
     
     // 如果没有referer，允许直接访问（某些浏览器或应用可能不发送referer）
     if (empty($referer)) {
@@ -49,8 +50,35 @@ function checkReferer() {
     }
     
     $refererHost = parse_url($referer, PHP_URL_HOST);
+    if (empty($refererHost)) {
+        return true; // 无法解析的referer视为允许
+    }
     
-    return in_array($refererHost, $allowedDomains);
+    // 检查基本允许域名
+    if (in_array($refererHost, $allowedDomains)) {
+        return true;
+    }
+    
+    // 添加当前主机到允许列表
+    if (!empty($host) && $refererHost === $host) {
+        return true;
+    }
+    
+    // 提取主域名（去除www前缀）
+    $mainHost = preg_replace('/^www\./i', '', $host);
+    $mainRefererHost = preg_replace('/^www\./i', '', $refererHost);
+    
+    // 检查主域名是否匹配
+    if ($mainRefererHost === $mainHost) {
+        return true;
+    }
+    
+    // 检查是否为子域名
+    if (preg_match('/\.' . preg_quote($mainHost, '/') . '$/', $refererHost)) {
+        return true;
+    }
+    
+    return false;
 }
 
 // 获取图片MIME类型
