@@ -38,7 +38,9 @@ function checkReferer() {
     // 基本允许的域名
     $allowedDomains = [
         'localhost',
-        '127.0.0.1'
+        '127.0.0.1',
+        'jelisgo.cn',
+        'www.jelisgo.cn'
     ];
     
     $referer = $_SERVER['HTTP_REFERER'] ?? '';

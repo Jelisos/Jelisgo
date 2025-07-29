@@ -1,0 +1,53 @@
+# 数据库配置模板
+# 请根据您的服务器环境选择合适的配置
+
+## 宝塔面板配置示例
+DB_HOST = "localhost"
+DB_NAME = "网站名_wallpaper_db"  # 例如：jelisgo_wallpaper_db
+DB_USER = "网站名_数据库用户"     # 例如：jelisgo_wallpaper
+DB_PWD = "宝塔面板生成的密码"
+
+## cPanel配置示例
+DB_HOST = "localhost"
+DB_NAME = "用户名_wallpaper_db"   # 例如：jelisgo_wallpaper_db
+DB_USER = "用户名_dbuser"         # 例如：jelisgo_dbuser
+DB_PWD = "您设置的密码"
+
+## 阿里云/腾讯云配置示例
+DB_HOST = "localhost" 或 "内网IP"
+DB_NAME = "wallpaper_db" 或 "带前缀的数据库名"
+DB_USER = "创建的数据库用户名"
+DB_PWD = "设置的密码"
+
+## 如何查找数据库配置信息
+
+### 宝塔面板
+1. 登录宝塔面板
+2. 点击 "数据库" 菜单
+3. 找到对应的数据库，查看用户名和数据库名
+4. 点击 "管理" 可以重置密码
+
+### cPanel
+1. 登录cPanel控制面板
+2. 找到 "数据库" 部分
+3. 点击 "MySQL数据库"
+4. 查看当前数据库和用户列表
+
+### 直接联系服务商
+如果无法确定配置信息，请联系您的服务器提供商或网站管理员。
+
+## 测试数据库连接
+配置完成后，访问以下URL测试：
+https://www.jelisgo.cn/config.php
+
+成功的响应示例：
+{
+    "success": true,
+    "environment": "online",
+    "config": {
+        "host": "localhost",
+        "database": "jelisgo_wallpaper_db",
+        "user": "jelisgo_wallpaper",
+        "charset": "utf8mb4"
+    }
+}
