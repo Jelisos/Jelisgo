@@ -23,15 +23,39 @@ function isOnlineEnvironment() {
     
     // 检查文档根目录（Linux服务器特征）
     $docRoot = $_SERVER["DOCUMENT_ROOT"] ?? "";
-    if (strpos($docRoot, "/www/wwwroot") !== false) {
+    if (strpos($docRoot, "/www/wwwroot") !== false || 
+        strpos($docRoot, "/var/www") !== false ||
+        strpos($docRoot, "/home/") !== false) {
         return true;
+    }
+    
+    // 检查环境变量
+    if (isset($_ENV['PRODUCTION']) || isset($_ENV['ONLINE']) || 
+        getenv('PRODUCTION') || getenv('ONLINE')) {
+        return true;
+    }
+    
+    // 检查服务器IP（排除本地IP）
+    $serverAddr = $_SERVER['SERVER_ADDR'] ?? '';
+    if ($serverAddr && !in_array($serverAddr, ['127.0.0.1', '::1', 'localhost'])) {
+        // 排除私有IP段
+        if (!preg_match('/^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)/', $serverAddr)) {
+            return true;
+        }
     }
     
     // 检查服务器软件（但排除本地开发环境）
     $serverSoftware = $_SERVER["SERVER_SOFTWARE"] ?? "";
     if ((strpos($serverSoftware, "nginx") !== false || strpos($serverSoftware, "Apache") !== false) && 
         strpos($docRoot, "XAMPP") === false && 
-        strpos($docRoot, "xampp") === false) {
+        strpos($docRoot, "xampp") === false &&
+        strpos($docRoot, "wamp") === false &&
+        strpos($docRoot, "mamp") === false) {
+        return true;
+    }
+    
+    // 检查操作系统（Linux通常是服务器环境）
+    if (PHP_OS_FAMILY === 'Linux' && strpos($docRoot, '/home/') === false) {
         return true;
     }
     

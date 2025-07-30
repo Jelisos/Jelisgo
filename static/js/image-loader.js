@@ -174,7 +174,34 @@ const ImageLoader = {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             
-            const result = await response.json();
+            // 检查响应内容类型
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                const responseText = await response.text();
+                console.error('[ImageLoader] API返回非JSON响应:', responseText.substring(0, 500));
+                
+                // 检查是否是HTML错误页面
+                if (responseText.includes('<html>') || responseText.includes('<!DOCTYPE')) {
+                    throw new Error('服务器返回了HTML错误页面，可能是PHP错误或配置问题');
+                }
+                
+                // 检查是否是PHP错误信息
+                if (responseText.includes('<br />') || responseText.includes('Fatal error') || responseText.includes('Parse error')) {
+                    throw new Error('服务器PHP代码执行错误: ' + responseText.substring(0, 200));
+                }
+                
+                throw new Error('API返回了非JSON格式的响应: ' + responseText.substring(0, 100));
+            }
+            
+            let result;
+            try {
+                result = await response.json();
+            } catch (jsonError) {
+                const responseText = await response.text();
+                console.error('[ImageLoader] JSON解析失败:', jsonError);
+                console.error('[ImageLoader] 响应内容:', responseText.substring(0, 500));
+                throw new Error('JSON解析失败，服务器可能返回了错误信息: ' + responseText.substring(0, 100));
+            }
             
             if (!result || typeof result !== 'object') {
                 throw new Error('API返回数据格式错误');

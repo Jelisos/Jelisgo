@@ -5,7 +5,41 @@
  * 功能: 从数据库获取壁纸数据，替代list.json文件
  * 创建时间: 2025-01-27
  * 维护: AI助手
+ * 更新: 2025-01-30 增强线上环境兼容性
  */
+
+// 开启输出缓冲，防止意外输出影响JSON格式
+ob_start();
+
+// 设置错误处理，确保所有错误都以JSON格式返回
+set_error_handler(function($severity, $message, $file, $line) {
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
+
+// 设置异常处理器
+set_exception_handler(function($exception) {
+    // 清理输出缓冲
+    if (ob_get_level()) {
+        ob_clean();
+    }
+    
+    // 确保返回JSON格式
+    header('Content-Type: application/json; charset=utf-8');
+    http_response_code(500);
+    
+    $error_response = [
+        'code' => 1,
+        'message' => '服务器内部错误: ' . $exception->getMessage(),
+        'debug_info' => [
+            'file' => basename($exception->getFile()),
+            'line' => $exception->getLine(),
+            'environment' => isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'unknown'
+        ]
+    ];
+    
+    echo json_encode($error_response, JSON_UNESCAPED_UNICODE);
+    exit;
+});
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -43,10 +77,33 @@ function logApiAccess($action, $params = [], $result = 'success') {
 }
 
 try {
-    // 建立数据库连接
-    $conn = getDBConnection();
+    // 建立数据库连接（带重试机制）
+    $conn = null;
+    $maxRetries = 3;
+    $retryDelay = 1; // 秒
+    
+    for ($i = 0; $i < $maxRetries; $i++) {
+        $conn = getDBConnection();
+        if ($conn) {
+            break;
+        }
+        
+        if ($i < $maxRetries - 1) {
+            sleep($retryDelay);
+            $retryDelay *= 2; // 指数退避
+        }
+    }
+    
     if (!$conn) {
-        throw new Exception('数据库连接失败');
+        // 记录详细的环境信息用于调试
+        $debug_info = [
+            'server_name' => $_SERVER['SERVER_NAME'] ?? 'unknown',
+            'document_root' => $_SERVER['DOCUMENT_ROOT'] ?? 'unknown',
+            'php_version' => PHP_VERSION,
+            'mysql_extension' => extension_loaded('mysqli') ? 'loaded' : 'not_loaded'
+        ];
+        
+        throw new Exception('数据库连接失败，已重试' . $maxRetries . '次。调试信息: ' . json_encode($debug_info));
     }
     
     // 获取请求参数
@@ -266,12 +323,22 @@ try {
     // 记录错误日志
     logApiAccess($action ?? 'unknown', $_GET, 'error: ' . $e->getMessage());
     
+    // 清理输出缓冲
+    if (ob_get_level()) {
+        ob_clean();
+    }
+    
     // 返回错误响应
     sendResponse(1, '服务器内部错误: ' . $e->getMessage());
 } finally {
     // 关闭数据库连接
     if (isset($conn) && $conn) {
         $conn->close();
+    }
+    
+    // 确保输出缓冲被正确处理
+    if (ob_get_level()) {
+        ob_end_flush();
     }
 }
 ?>
