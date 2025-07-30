@@ -16,16 +16,24 @@ set_error_handler(function($severity, $message, $file, $line) {
     throw new ErrorException($message, 0, $severity, $file, $line);
 });
 
-// 设置异常处理器
+// 增强的异常处理器 - 确保绝对不会输出HTML
 set_exception_handler(function($exception) {
-    // 清理输出缓冲
-    if (ob_get_level()) {
-        ob_clean();
+    // 清理所有输出缓冲
+    while (ob_get_level()) {
+        ob_end_clean();
     }
     
-    // 确保返回JSON格式
-    header('Content-Type: application/json; charset=utf-8');
-    http_response_code(500);
+    // 清理任何可能的输出
+    if (headers_sent()) {
+        // 如果头已发送，尝试清理输出
+        echo "\n\n";
+    }
+    
+    // 强制设置JSON头
+    if (!headers_sent()) {
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(500);
+    }
     
     $error_response = [
         'code' => 1,
@@ -33,7 +41,8 @@ set_exception_handler(function($exception) {
         'debug_info' => [
             'file' => basename($exception->getFile()),
             'line' => $exception->getLine(),
-            'environment' => isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'unknown'
+            'environment' => isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'unknown',
+            'timestamp' => date('Y-m-d H:i:s')
         ]
     ];
     
@@ -323,13 +332,29 @@ try {
     // 记录错误日志
     logApiAccess($action ?? 'unknown', $_GET, 'error: ' . $e->getMessage());
     
-    // 清理输出缓冲
-    if (ob_get_level()) {
-        ob_clean();
+    // 清理所有输出缓冲
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+    
+    // 强制确保JSON响应
+    if (!headers_sent()) {
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(500);
     }
     
     // 返回错误响应
-    sendResponse(1, '服务器内部错误: ' . $e->getMessage());
+    echo json_encode([
+        'code' => 1,
+        'msg' => '服务器内部错误: ' . $e->getMessage(),
+        'data' => null,
+        'debug_info' => [
+            'timestamp' => date('Y-m-d H:i:s'),
+            'error_type' => 'catch_block',
+            'environment' => $_SERVER['SERVER_NAME'] ?? 'unknown'
+        ]
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
 } finally {
     // 关闭数据库连接
     if (isset($conn) && $conn) {
@@ -337,7 +362,7 @@ try {
     }
     
     // 确保输出缓冲被正确处理
-    if (ob_get_level()) {
+    while (ob_get_level()) {
         ob_end_flush();
     }
 }
