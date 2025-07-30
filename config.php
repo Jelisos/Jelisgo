@@ -6,21 +6,29 @@
 
 // 检测是否为线上环境
 function isOnlineEnvironment() {
-    // 检查服务器软件
-    $serverSoftware = $_SERVER["SERVER_SOFTWARE"] ?? "";
-    if (strpos($serverSoftware, "nginx") !== false) {
-        return true;
-    }
-    
-    // 检查域名
+    // 检查域名（最可靠的方式）
     $serverName = $_SERVER["SERVER_NAME"] ?? "";
     if (strpos($serverName, "jelisgo.cn") !== false) {
         return true;
     }
     
-    // 检查文档根目录
+    // 检查HTTP_HOST
+    $httpHost = $_SERVER["HTTP_HOST"] ?? "";
+    if (strpos($httpHost, "jelisgo.cn") !== false) {
+        return true;
+    }
+    
+    // 检查文档根目录（Linux服务器特征）
     $docRoot = $_SERVER["DOCUMENT_ROOT"] ?? "";
     if (strpos($docRoot, "/www/wwwroot") !== false) {
+        return true;
+    }
+    
+    // 检查服务器软件（但排除本地开发环境）
+    $serverSoftware = $_SERVER["SERVER_SOFTWARE"] ?? "";
+    if (strpos($serverSoftware, "nginx") !== false && 
+        strpos($docRoot, "XAMPP") === false && 
+        strpos($docRoot, "xampp") === false) {
         return true;
     }
     
@@ -31,9 +39,9 @@ function isOnlineEnvironment() {
 if (isOnlineEnvironment()) {
     // 线上环境配置
     define("DB_HOST", "localhost");
-    define("DB_NAME", "jelisgo_wallpaper_db");
-    define("DB_USER", "jelisgo_wallpaper");
-    define("DB_PWD", "your_online_password");
+    define("DB_NAME", "wallpaper_db");
+    define("DB_USER", "jelis-bzm");
+    define("DB_PWD", "KWGzspzsfrTyKRPL");
     
     // 记录日志
     error_log("[Config] 使用线上环境数据库配置");

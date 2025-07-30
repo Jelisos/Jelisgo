@@ -22,7 +22,7 @@ tempFileLog('my_favorites.php: 文件开始执行', 'favorite_debug_log.txt', 'F
  */
 session_start();
 header('Content-Type: application/json; charset=utf-8');
-require_once '../config.php';
+require_once '../config/database.php';
 // require_once './utils.php'; // 2024-07-27 修复：确保引入 utils.php 以便使用 sendDebugLog (暂时注释，使用临时嵌入函数)
 
 // 2024-07-27 新增：调试日志，打印SESSION内容

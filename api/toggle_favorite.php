@@ -1,7 +1,7 @@
 <?php
 ob_start(); // 2024-07-26 新增：启动输出缓冲
 session_start();
-require_once '../config.php';
+require_once '../config/database.php';
 require_once './write_log.php';
 header('Content-Type: application/json');
 ob_clean(); // 2024-07-26 新增：清除之前的所有输出
@@ -47,49 +47,46 @@ if (!$user_id) {
     exit;
 }
 
-$db = new mysqli(DB_HOST, DB_USER, DB_PWD, DB_NAME);
-if ($db->connect_errno) {
-    sendDebugLog("数据库连接失败: " . $db->connect_error, 'favorite_debug_log.txt', 'append', 'db_connect_fail');
+try {
+    $pdo = getPDOConnection();
+    if (!$pdo) {
+        throw new Exception("数据库连接失败");
+    }
+} catch (Exception $e) {
+    sendDebugLog("数据库连接失败: " . $e->getMessage(), 'favorite_debug_log.txt', 'append', 'db_connect_fail');
     echo json_encode(['code' => 500, 'msg' => '数据库连接失败']);
     ob_end_flush();
     exit;
 }
 
 // 检查是否已收藏
-$stmt_check = $db->prepare('SELECT COUNT(*) FROM wallpaper_favorites WHERE user_id = ? AND wallpaper_id = ?');
-$stmt_check->bind_param('ii', $user_id, $wallpaper_id);
-$stmt_check->execute();
-$stmt_check->bind_result($count);
-$stmt_check->fetch();
-$stmt_check->close();
+$stmt_check = $pdo->prepare('SELECT COUNT(*) FROM wallpaper_favorites WHERE user_id = ? AND wallpaper_id = ?');
+$stmt_check->execute([$user_id, $wallpaper_id]);
+$count = $stmt_check->fetchColumn();
 
 if ($count > 0) {
     // 已收藏，执行取消收藏操作 (DELETE)
-    $stmt_delete = $db->prepare('DELETE FROM wallpaper_favorites WHERE user_id = ? AND wallpaper_id = ?');
-    $stmt_delete->bind_param('ii', $user_id, $wallpaper_id);
-    if ($stmt_delete->execute()) {
+    $stmt_delete = $pdo->prepare('DELETE FROM wallpaper_favorites WHERE user_id = ? AND wallpaper_id = ?');
+    if ($stmt_delete->execute([$user_id, $wallpaper_id])) {
         sendDebugLog("取消收藏成功: user_id={$user_id}, wallpaper_id={$wallpaper_id}", 'favorite_debug_log.txt', 'append', 'unfavorite_success');
         echo json_encode(['code' => 0, 'msg' => '取消收藏成功', 'action' => 'unfavorited']);
     } else {
-        sendDebugLog("取消收藏失败: " . $stmt_delete->error, 'favorite_debug_log.txt', 'append', 'unfavorite_fail');
+        $errorInfo = $stmt_delete->errorInfo();
+        sendDebugLog("取消收藏失败: " . $errorInfo[2], 'favorite_debug_log.txt', 'append', 'unfavorite_fail');
         echo json_encode(['code' => 1, 'msg' => '取消收藏失败']);
     }
-    $stmt_delete->close();
 } else {
     // 未收藏，执行添加收藏操作 (INSERT)
-    $stmt_insert = $db->prepare('INSERT INTO wallpaper_favorites (user_id, wallpaper_id) VALUES (?, ?)');
-    $stmt_insert->bind_param('ii', $user_id, $wallpaper_id);
-    if ($stmt_insert->execute()) {
+    $stmt_insert = $pdo->prepare('INSERT INTO wallpaper_favorites (user_id, wallpaper_id) VALUES (?, ?)');
+    if ($stmt_insert->execute([$user_id, $wallpaper_id])) {
         sendDebugLog("收藏成功: user_id={$user_id}, wallpaper_id={$wallpaper_id}", 'favorite_debug_log.txt', 'append', 'favorite_success');
         echo json_encode(['code' => 0, 'msg' => '收藏成功', 'action' => 'favorited']);
     } else {
-        sendDebugLog("收藏失败: " . $stmt_insert->error, 'favorite_debug_log.txt', 'append', 'favorite_fail');
+        $errorInfo = $stmt_insert->errorInfo();
+        sendDebugLog("收藏失败: " . $errorInfo[2], 'favorite_debug_log.txt', 'append', 'favorite_fail');
         echo json_encode(['code' => 1, 'msg' => '收藏失败']);
     }
-    $stmt_insert->close();
 }
-
-$db->close();
 ob_end_flush();
 exit;
 ?>

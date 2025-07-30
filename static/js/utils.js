@@ -94,6 +94,39 @@ const Utils = {
     },
 
     /**
+     * 检测当前环境是否为本地环境
+     * @returns {boolean} - 是否为本地环境
+     */
+    isLocalhost() {
+        return window.location.hostname === 'localhost' || 
+               window.location.hostname === '127.0.0.1' || 
+               window.location.hostname.startsWith('192.168.') ||
+               window.location.hostname.startsWith('10.') ||
+               window.location.hostname.startsWith('172.');
+    },
+
+    /**
+     * 根据环境获取图片路径
+     * @param {string} filePath - wallpapers表中的file_path字段
+     * @param {string} tokenizedUrl - TOKEN化URL（可选）
+     * @param {boolean} isPreview - 是否为预览图，默认false
+     * @returns {string} - 最终的图片路径
+     */
+    getImagePath(filePath, tokenizedUrl = null, isPreview = false) {
+        if (this.isLocalhost()) {
+            // 本地环境：优先使用TOKEN化路径
+            if (tokenizedUrl) {
+                return tokenizedUrl;
+            }
+            // 如果没有TOKEN化路径，使用原始路径
+            return isPreview ? filePath.replace('static/wallpapers/', 'static/preview/') : filePath;
+        } else {
+            // 线上环境：直接使用wallpapers表的file_path字段
+            return isPreview ? filePath.replace('static/wallpapers/', 'static/preview/') : filePath;
+        }
+    },
+
+    /**
      * 弹出右下角消息提示
      * @param {string} msg - 提示内容
      * @param {number} duration - 显示时长（毫秒），默认2000

@@ -276,8 +276,18 @@ try {
     $maxHeight = !empty($_GET['h']) ? max(50, min(2000, intval($_GET['h']))) : null;
     $download = isset($_GET['download']);
     
-    // Token验证模式
+    // Token验证模式 - 线上环境禁用TOKEN功能
     if (!empty($token)) {
+        // 检查是否为线上环境
+        if (isOnlineEnvironment()) {
+            // 线上环境禁用TOKEN功能，直接返回错误
+            logImageAccess('token:' . $token, 'blocked', 'Token access disabled in online environment');
+            http_response_code(403);
+            echo 'Token access not available';
+            exit;
+        }
+        
+        // 本地环境继续使用TOKEN验证
         $tokenInfo = validateImageToken($token);
         if (!$tokenInfo) {
             logImageAccess('token:' . $token, 'error', 'Invalid or expired token');

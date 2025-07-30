@@ -13,7 +13,7 @@ ini_set("error_log", __DIR__ . "/../../LOGS/php_errors.log");
  * @version 4.0 - Nginx/PHP 8.2 Compatible
  */
 
-require_once __DIR__ . "/../../config.php";
+require_once __DIR__ . "/../../config/database.php";
 
 // 检查用户登录状态
 function checkUserLogin() {
@@ -75,26 +75,7 @@ if ($_SERVER["REQUEST_METHOD"] !== "GET") {
     exit;
 }
 
-/**
- * 获取数据库连接 - PHP 8.2 优化
- */
-function getDbConnection() {
-    try {
-        $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4";
-        $options = [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false,
-            PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
-        ];
-        
-        $pdo = new PDO($dsn, DB_USER, DB_PWD, $options);
-        return $pdo;
-    } catch (PDOException $e) {
-        error_log("数据库连接失败: " . $e->getMessage());
-        throw new Exception("数据库连接失败: " . $e->getMessage());
-    }
-}
+// 使用 database.php 中的 getPDOConnection 函数
 
 /**
  * 检查必要的表和字段是否存在
@@ -130,7 +111,10 @@ function checkRequiredTables($pdo) {
  */
 function getMembershipStatus($user_id) {
     try {
-        $pdo = getDbConnection();
+        $pdo = getPDOConnection();
+        if (!$pdo) {
+            throw new Exception("数据库连接失败");
+        }
         
         // 检查必要的表和字段是否存在
         if (!checkRequiredTables($pdo)) {

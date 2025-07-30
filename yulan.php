@@ -663,19 +663,63 @@
             const urlParams = new URLSearchParams(window.location.search);
             let imageUrl = urlParams.get('image');
 
-            // 修复：图片URL处理逻辑，支持从预览图路径转换为原图路径
+            // 环境检测的图片URL处理逻辑
             if (imageUrl) {
-                // 检查是否为预览图路径，如果是则转换为原图路径
-                let originalImageUrl = imageUrl;
+                let finalImageUrl = imageUrl;
                 
-                // 如果传入的是预览图路径（static/preview/001/），转换为原图路径（static/wallpapers/001/）
-                if (imageUrl.includes('static/preview/')) {
-                    originalImageUrl = imageUrl.replace('static/preview/', 'static/wallpapers/');
-                    console.log('预览图路径转换为原图路径:', imageUrl, '->', originalImageUrl);
+                // 检测当前环境
+                const isLocalhost = window.location.hostname === 'localhost' || 
+                                   window.location.hostname === '127.0.0.1' || 
+                                   window.location.hostname.startsWith('192.168.') ||
+                                   window.location.hostname.startsWith('10.') ||
+                                   window.location.hostname.startsWith('172.');
+                
+                if (isLocalhost) {
+                    // 本地环境：保持TOKEN化路径或转换预览图为原图
+                    if (imageUrl.includes('static/preview/')) {
+                        finalImageUrl = imageUrl.replace('static/preview/', 'static/wallpapers/');
+                        console.log('本地环境：预览图路径转换为原图路径:', imageUrl, '->', finalImageUrl);
+                    } else {
+                        finalImageUrl = imageUrl; // 保持TOKEN化URL或原图路径
+                        console.log('本地环境：使用传入的图片URL:', finalImageUrl);
+                    }
+                } else {
+                    // 线上环境：如果是TOKEN化URL，需要通过API获取真实路径
+                    if (imageUrl.includes('image_proxy.php?token=') || imageUrl.includes('proxy.php?token=')) {
+                        // 线上环境收到TOKEN化URL，通过壁纸ID获取真实路径
+                        const wallpaperId = urlParams.get('id');
+                        if (wallpaperId) {
+                            // 异步获取真实路径
+                            fetch(`api/wallpaper_detail.php?id=${wallpaperId}`)
+                                .then(response => response.json())
+                                .then(result => {
+                                    if (result.code === 0 && result.data && result.data.path) {
+                                        console.log('线上环境：通过API获取真实路径:', result.data.path);
+                                        loadAndDisplayWallpaper(result.data.path);
+                                    } else {
+                                        console.warn('线上环境：无法获取真实路径，使用原URL');
+                                        loadAndDisplayWallpaper(imageUrl);
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('线上环境：获取真实路径失败:', error);
+                                    loadAndDisplayWallpaper(imageUrl);
+                                });
+                            return; // 提前返回，等待异步处理
+                        }
+                    } else if (imageUrl.includes('static/preview/')) {
+                        // 线上环境：预览图转原图
+                        finalImageUrl = imageUrl.replace('static/preview/', 'static/wallpapers/');
+                        console.log('线上环境：预览图路径转换为原图路径:', imageUrl, '->', finalImageUrl);
+                    } else {
+                        // 线上环境：直接使用传入的路径
+                        finalImageUrl = imageUrl;
+                        console.log('线上环境：直接使用传入的图片URL:', finalImageUrl);
+                    }
                 }
                 
-                // 加载原图
-                loadAndDisplayWallpaper(originalImageUrl);
+                // 加载图片
+                loadAndDisplayWallpaper(finalImageUrl);
             } else {
                 // 如果没有图片URL，不加载任何图片，等待用户上传
                 console.log('没有指定图片URL，请上传。');
@@ -2112,59 +2156,111 @@
             // 新增：下载原图按钮
             /**
              * 下载当前预览的原始图片
-             * @description 支持首页跳转和本地上传两种情况，自动识别图片来源
+             * @description 支持首页跳转和本地上传两种情况，自动识别图片来源，根据环境选择不同策略
              */
             const downloadOriginalButton = document.getElementById('downloadOriginalButton');
             downloadOriginalButton.addEventListener('click', async function() {
                 let url = '';
                 
-                // 优先通过壁纸ID从数据库获取原图路径
+                // 检测当前环境
+                const isLocalhost = window.location.hostname === 'localhost' || 
+                                   window.location.hostname === '127.0.0.1' || 
+                                   window.location.hostname.startsWith('192.168.') ||
+                                   window.location.hostname.startsWith('10.') ||
+                                   window.location.hostname.startsWith('172.');
+                
                 const urlParams = new URLSearchParams(window.location.search);
                 const wallpaperId = urlParams.get('id');
                 
-                if (wallpaperId) {
-                    try {
-                        const response = await fetch(`api/wallpaper_detail.php?id=${wallpaperId}`);
-                        const result = await response.json();
-                        if (result.code === 0 && result.data && result.data.path) {
-                            url = result.data.path;
-                            console.log('通过壁纸ID获取到原图路径:', url);
-                        }
-                    } catch (error) {
-                        console.error('获取壁纸路径失败:', error);
-                    }
-                }
-                
-                // 如果通过ID获取失败，则使用原有逻辑（但优先查找原图路径）
-                if (!url) {
-                    // 检查URL参数中的image是否为原图路径
-                    if (typeof imageUrl === 'string') {
-                        if (imageUrl.startsWith('static/wallpapers/') || imageUrl.match(/static\/wallpapers\/\d{3}\//)) {
-                            // 直接是原图路径
-                            url = imageUrl;
-                        } else if (imageUrl.includes('static/preview/')) {
-                            // 是预览图路径，转换为原图路径
-                            url = imageUrl.replace('static/preview/', 'static/wallpapers/');
-                            console.log('预览图路径转换为原图路径:', imageUrl, '->', url);
-                        } else if (imageUrl.includes('proxy.php?token=') || imageUrl.includes('image_proxy.php')) {
-                            // Token化URL，保持原样
-                            url = imageUrl;
-                        } else if (imageUrl.startsWith('blob:')) {
-                            // Blob URL，保持原样
-                            url = imageUrl;
+                if (isLocalhost) {
+                    // 本地环境：优先通过壁纸ID从数据库获取原图路径，保持TOKEN化逻辑
+                    if (wallpaperId) {
+                        try {
+                            const response = await fetch(`api/wallpaper_detail.php?id=${wallpaperId}`);
+                            const result = await response.json();
+                            if (result.code === 0 && result.data && result.data.path) {
+                                url = result.data.path;
+                                console.log('本地环境：通过壁纸ID获取到原图路径:', url);
+                            }
+                        } catch (error) {
+                            console.error('本地环境：获取壁纸路径失败:', error);
                         }
                     }
                     
-                    // 如果imageUrl没有找到合适的路径，检查currentWallpaper
-                    if (!url && currentWallpaper && typeof currentWallpaper.src === 'string') {
-                        if (currentWallpaper.src.startsWith('static/wallpapers/') || currentWallpaper.src.match(/static\/wallpapers\/\d{3}\//)) {
-                            url = currentWallpaper.src;
-                        } else if (currentWallpaper.src.includes('static/preview/')) {
-                            url = currentWallpaper.src.replace('static/preview/', 'static/wallpapers/');
-                        } else if (currentWallpaper.src.includes('proxy.php?token=') || currentWallpaper.src.includes('image_proxy.php')) {
-                            url = currentWallpaper.src;
-                        } else if (currentWallpaper.src.startsWith('blob:')) {
-                            url = currentWallpaper.src;
+                    // 本地环境的降级处理
+                    if (!url) {
+                        // 检查URL参数中的image是否为原图路径
+                        if (typeof imageUrl === 'string') {
+                            if (imageUrl.startsWith('static/wallpapers/') || imageUrl.match(/static\/wallpapers\/\d{3}\//)) {
+                                url = imageUrl;
+                            } else if (imageUrl.includes('static/preview/')) {
+                                url = imageUrl.replace('static/preview/', 'static/wallpapers/');
+                                console.log('本地环境：预览图路径转换为原图路径:', imageUrl, '->', url);
+                            } else if (imageUrl.includes('proxy.php?token=') || imageUrl.includes('image_proxy.php')) {
+                                url = imageUrl; // 保持TOKEN化URL
+                            } else if (imageUrl.startsWith('blob:')) {
+                                url = imageUrl;
+                            }
+                        }
+                        
+                        // 如果imageUrl没有找到合适的路径，检查currentWallpaper
+                        if (!url && currentWallpaper && typeof currentWallpaper.src === 'string') {
+                            if (currentWallpaper.src.startsWith('static/wallpapers/') || currentWallpaper.src.match(/static\/wallpapers\/\d{3}\//)) {
+                                url = currentWallpaper.src;
+                            } else if (currentWallpaper.src.includes('static/preview/')) {
+                                url = currentWallpaper.src.replace('static/preview/', 'static/wallpapers/');
+                            } else if (currentWallpaper.src.includes('proxy.php?token=') || currentWallpaper.src.includes('image_proxy.php')) {
+                                url = currentWallpaper.src; // 保持TOKEN化URL
+                            } else if (currentWallpaper.src.startsWith('blob:')) {
+                                url = currentWallpaper.src;
+                            }
+                        }
+                    }
+                } else {
+                    // 线上环境：直接通过壁纸ID从数据库获取file_path字段，不使用TOKEN化
+                    if (wallpaperId) {
+                        try {
+                            const response = await fetch(`api/wallpaper_detail.php?id=${wallpaperId}`);
+                            const result = await response.json();
+                            if (result.code === 0 && result.data && result.data.path) {
+                                url = result.data.path; // 直接使用wallpapers表的file_path字段
+                                console.log('线上环境：通过壁纸ID获取到原图路径:', url);
+                            }
+                        } catch (error) {
+                            console.error('线上环境：获取壁纸路径失败:', error);
+                        }
+                    }
+                    
+                    // 线上环境的降级处理
+                    if (!url) {
+                        if (typeof imageUrl === 'string') {
+                            if (imageUrl.startsWith('static/wallpapers/') || imageUrl.match(/static\/wallpapers\/\d{3}\//)) {
+                                url = imageUrl;
+                            } else if (imageUrl.includes('static/preview/')) {
+                                url = imageUrl.replace('static/preview/', 'static/wallpapers/');
+                                console.log('线上环境：预览图路径转换为原图路径:', imageUrl, '->', url);
+                            } else if (imageUrl.includes('proxy.php?token=') || imageUrl.includes('image_proxy.php')) {
+                                // 线上环境收到TOKEN化URL，尝试通过API获取真实路径
+                                if (wallpaperId) {
+                                    // 已经在上面尝试过API获取，这里使用TOKEN化URL作为最后手段
+                                    url = imageUrl;
+                                } else {
+                                    console.warn('线上环境：无法处理TOKEN化URL，缺少壁纸ID');
+                                }
+                            } else if (imageUrl.startsWith('blob:')) {
+                                url = imageUrl;
+                            }
+                        }
+                        
+                        // 检查currentWallpaper
+                        if (!url && currentWallpaper && typeof currentWallpaper.src === 'string') {
+                            if (currentWallpaper.src.startsWith('static/wallpapers/') || currentWallpaper.src.match(/static\/wallpapers\/\d{3}\//)) {
+                                url = currentWallpaper.src;
+                            } else if (currentWallpaper.src.includes('static/preview/')) {
+                                url = currentWallpaper.src.replace('static/preview/', 'static/wallpapers/');
+                            } else if (currentWallpaper.src.startsWith('blob:')) {
+                                url = currentWallpaper.src;
+                            }
                         }
                     }
                 }

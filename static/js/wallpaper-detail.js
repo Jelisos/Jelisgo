@@ -78,28 +78,34 @@ const WallpaperDetail = {
                 downloadBtn.disabled = true;
 
                 try {
-                    // 2025-01-27 修复：高清下载使用TOKEN化的预览图路径，并添加download参数
                     let imageUrlToDownload;
                     
-                    // 使用ImageTokenManager直接构建带download参数的TOKEN化URL
-                    if (window.ImageTokenManager && this.currentWallpaper.id) {
-                        try {
-                            imageUrlToDownload = await window.ImageTokenManager.buildTokenizedUrl(
-                                this.currentWallpaper.id, 
-                                'original', 
-                                { 
-                                    quality: 85,
-                                    download: true, // 关键：添加download参数
-                                    imagePath: this.currentWallpaper.path
-                                }
-                            );
-                            console.log('[WallpaperDetail] 使用TOKEN化下载URL:', imageUrlToDownload);
-                        } catch (error) {
-                            console.warn('[WallpaperDetail] TOKEN化下载URL获取失败，使用原始路径:', error);
+                    // 环境检测：本地使用TOKEN化，线上直接使用file_path
+                    if (Utils.isLocalhost()) {
+                        // 本地环境：使用TOKEN化下载
+                        if (window.ImageTokenManager && this.currentWallpaper.id) {
+                            try {
+                                imageUrlToDownload = await window.ImageTokenManager.buildTokenizedUrl(
+                                    this.currentWallpaper.id, 
+                                    'original', 
+                                    { 
+                                        quality: 85,
+                                        download: true,
+                                        imagePath: this.currentWallpaper.path
+                                    }
+                                );
+                                console.log('[WallpaperDetail] 本地环境使用TOKEN化下载URL:', imageUrlToDownload);
+                            } catch (error) {
+                                console.warn('[WallpaperDetail] 本地环境TOKEN化下载失败，使用原始路径:', error);
+                                imageUrlToDownload = this.currentWallpaper.path;
+                            }
+                        } else {
                             imageUrlToDownload = this.currentWallpaper.path;
                         }
                     } else {
+                        // 线上环境：直接使用wallpapers表的file_path
                         imageUrlToDownload = this.currentWallpaper.path;
+                        console.log('[WallpaperDetail] 线上环境直接使用原图路径:', imageUrlToDownload);
                     }
                     
                     // 类型检查：确保返回值是字符串
@@ -158,40 +164,37 @@ const WallpaperDetail = {
         if (previewBtn) {
             previewBtn.addEventListener('click', async () => {
                 if (this.currentWallpaper && this.currentWallpaper.path && this.currentWallpaper.id) {
-                    try {
-                        // 确保使用原图路径而不是预览图路径
-                        let originalImagePath = this.currentWallpaper.path;
-                        
-                        // 如果当前路径是预览图路径，转换为原图路径
-                        if (originalImagePath.includes('static/preview/')) {
-                            originalImagePath = originalImagePath.replace('static/preview/', 'static/wallpapers/');
-                            console.log('[WallpaperDetail] 转换预览图路径为原图路径:', originalImagePath);
+                    // 确保使用原图路径而不是预览图路径
+                    let originalImagePath = this.currentWallpaper.path;
+                    
+                    // 如果当前路径是预览图路径，转换为原图路径
+                    if (originalImagePath.includes('static/preview/')) {
+                        originalImagePath = originalImagePath.replace('static/preview/', 'static/wallpapers/');
+                        console.log('[WallpaperDetail] 转换预览图路径为原图路径:', originalImagePath);
+                    }
+                    
+                    // 环境检测：本地使用TOKEN化，线上直接使用file_path
+                    if (Utils.isLocalhost()) {
+                        // 本地环境：使用TOKEN化URL
+                        try {
+                            const tokenManager = window.ImageTokenManager || new ImageTokenManager();
+                            const tokenizedUrl = await tokenManager.buildTokenizedUrl(
+                                this.currentWallpaper.id, 
+                                'original', 
+                                { imagePath: originalImagePath }
+                            );
+                            
+                            console.log('[WallpaperDetail] 本地环境Token化URL:', tokenizedUrl);
+                            const yulanUrl = `yulan.php?image=${encodeURIComponent(tokenizedUrl)}&id=${this.currentWallpaper.id}`;
+                            window.open(yulanUrl, '_blank');
+                        } catch (error) {
+                            console.error('[WallpaperDetail] 本地环境Token化失败，使用原始路径:', error);
+                            const yulanUrl = `yulan.php?image=${encodeURIComponent(originalImagePath)}&id=${this.currentWallpaper.id}`;
+                            window.open(yulanUrl, '_blank');
                         }
-                        
-                        // 使用Token化的原图URL
-                        const tokenManager = window.ImageTokenManager || new ImageTokenManager();
-                        const tokenizedUrl = await tokenManager.buildTokenizedUrl(
-                            this.currentWallpaper.id, 
-                            'original', 
-                            { imagePath: originalImagePath }
-                        );
-                        
-                        console.log('[WallpaperDetail] Token化原图URL:', tokenizedUrl);
-                        
-                        // 构建跳转URL，传递Token化的图片URL和壁纸ID作为参数
-                        const yulanUrl = `yulan.php?image=${encodeURIComponent(tokenizedUrl)}&id=${this.currentWallpaper.id}`;
-                        window.open(yulanUrl, '_blank'); // 在新标签页打开
-                    } catch (error) {
-                        console.error('[WallpaperDetail] 获取Token化URL失败:', error);
-                        // 降级到原始路径，确保使用原图路径
-                        let originalImagePath = this.currentWallpaper.path;
-                        
-                        // 如果当前路径是预览图路径，转换为原图路径
-                        if (originalImagePath.includes('static/preview/')) {
-                            originalImagePath = originalImagePath.replace('static/preview/', 'static/wallpapers/');
-                            console.log('[WallpaperDetail] 降级时转换预览图路径为原图路径:', originalImagePath);
-                        }
-                        
+                    } else {
+                        // 线上环境：直接使用wallpapers表的file_path
+                        console.log('[WallpaperDetail] 线上环境直接使用原图路径:', originalImagePath);
                         const yulanUrl = `yulan.php?image=${encodeURIComponent(originalImagePath)}&id=${this.currentWallpaper.id}`;
                         window.open(yulanUrl, '_blank');
                     }

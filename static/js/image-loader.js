@@ -1255,37 +1255,41 @@ const ImageLoader = {
             // 规范化路径，确保以static开头 (如果原始路径没有斜杠开头)
             const normalizedPath = originalPath.startsWith('/') ? originalPath : `/${originalPath}`;
             
-            // 2025-01-27 修复：使用真实壁纸ID进行Token化访问
-            if (window.ImageTokenManager && wallpaperId) {
-                try {
-                    // 直接使用传入的真实壁纸ID，而不是从路径提取目录ID
-                    console.log(`[ImageLoader] 使用真实壁纸ID进行Token化: ${wallpaperId}`);
-                    
-                    // 构建Token化的URL，使用original类型以获取更好的图片质量
-                    const tokenizedUrl = await window.ImageTokenManager.buildTokenizedUrl(
-                        wallpaperId, 
-                        'original', 
-                        { 
-                            quality: 85,
-                            imagePath: normalizedPath // 传递完整的图片路径
+            // 环境检测：本地使用TOKEN化，线上直接使用file_path
+            if (Utils.isLocalhost()) {
+                // 本地环境：优先使用TOKEN化访问
+                if (window.ImageTokenManager && wallpaperId) {
+                    try {
+                        console.log(`[ImageLoader] 本地环境使用Token化: ${wallpaperId}`);
+                        
+                        const tokenizedUrl = await window.ImageTokenManager.buildTokenizedUrl(
+                            wallpaperId, 
+                            'original', 
+                            { 
+                                quality: 85,
+                                imagePath: normalizedPath
+                            }
+                        );
+                        
+                        if (tokenizedUrl && !tokenizedUrl.includes('buildFallbackUrl')) {
+                            console.log(`[ImageLoader] 本地环境Token化成功: ${tokenizedUrl}`);
+                            return tokenizedUrl;
                         }
-                    );
-                    
-                    if (tokenizedUrl && !tokenizedUrl.includes('buildFallbackUrl')) {
-                        console.log(`[ImageLoader] 成功使用Token化URL: ID=${wallpaperId}, 路径: ${normalizedPath}`);
-                        return tokenizedUrl;
+                    } catch (tokenError) {
+                        console.warn('[ImageLoader] 本地环境Token化失败，回退到传统方式:', tokenError);
                     }
-                } catch (tokenError) {
-                    console.warn('[ImageLoader] Token化访问失败，回退到传统方式:', tokenError);
                 }
+                
+                // 本地环境回退到传统方式
+                const compressedUrl = await ImageCompressor.getCompressedImageUrl(normalizedPath, 'preview');
+                console.log(`[ImageLoader] 本地环境使用传统方式: ${normalizedPath} -> ${compressedUrl}`);
+                return compressedUrl;
+            } else {
+                // 线上环境：直接使用wallpapers表的file_path，转换为预览图路径
+                const previewPath = Utils.getImagePath(normalizedPath, null, true);
+                console.log(`[ImageLoader] 线上环境直接使用预览图路径: ${normalizedPath} -> ${previewPath}`);
+                return previewPath;
             }
-            
-            // 回退到传统的ImageCompressor方式
-            // 2024-07-24 修改: 将类型从'thumbnail'改为'preview'，以便ImageCompressor获取预览图
-            const compressedUrl = await ImageCompressor.getCompressedImageUrl(normalizedPath, 'preview');
-            
-            console.log(`[ImageLoader] 使用传统方式加载图片: ${normalizedPath} -> ${compressedUrl}`);
-            return compressedUrl;
         } catch (error) {
             console.warn('[ImageLoader] 获取压缩图片URL失败:', error);
             return originalPath;
