@@ -216,8 +216,8 @@ $currentUrl = 'https://Jelisgo.cn' . $_SERVER['REQUEST_URI'];
                 <button id="grid-view-btn" class="p-2 rounded bg-primary text-white">
                     <img src="static/icons/fa-th-large.svg" alt="网格视图" class="w-4 h-4" />
                 </button>
-                <button id="list-view-btn" class="p-2 rounded bg-white hover:bg-neutral-dark transition-colors">
-                    <img src="static/icons/fa-list.svg" alt="列表视图" class="w-4 h-4" />
+                <button id="list-view-btn" class="p-2 rounded bg-white hover:bg-neutral-dark transition-colors" title="我的收藏">
+                    <img src="static/icons/fa-heart.svg" alt="我的收藏" class="w-4 h-4" />
                 </button>
                 <!-- 2024-07-28 新增：流放图片按钮，仅管理员可见 -->
                 <button id="exiled-list-view-btn" class="p-2 rounded bg-white hover:bg-neutral-dark transition-colors hidden">

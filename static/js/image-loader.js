@@ -21,7 +21,7 @@ const ImageLoader = {
         filteredWallpapers: [],
         displayedWallpapers: new Set(),
         currentPage: 0,
-        itemsPerPage: 24,  // 2025-01-27 修复：增加单次加载量，减少加载次数
+        itemsPerPage: 20,  // 2025-01-30 性能优化：减少单次加载量，提升首页加载速度
         isLoading: false,
         isPreloading: false,  // 2025-01-27 添加预加载状态跟踪
         currentViewMode: 'grid',
@@ -31,15 +31,32 @@ const ImageLoader = {
         categories: new Set(['all']),
         preloadedImages: new Set(),  // 预加载的图片集合
         intersectionObserver: null,   // 懒加载观察器
-        userFavorites: new Set(), // 2024-07-16 新增：存储用户收藏的壁纸ID
-        // userLikes 已删除
+        
+        // 2025-02-01 重构：收藏状态管理
+        userFavorites: new Set(), // 存储用户收藏的壁纸ID
+        favoritesLoaded: false,   // 收藏数据是否已加载
+        favoritesLoading: false,  // 收藏数据是否正在加载
+        
         isUserAdmin: false, // 2024-07-28 新增：用户是否为管理员
         exiledWallpaperIds: new Set(), // 2024-07-28 新增：存储被流放壁纸的ID
         exiledWallpapersData: [], // 2024-12-19 新增：存储流放壁纸的完整数据（包含时间）
         isPageReady: false, // 2024-12-19 新增：页面是否加载完成，防止快速点击
         viewSwitchDebounce: null, // 2024-12-19 新增：视图切换防抖定时器
         sessionSeed: null, // 2025-01-27 新增：会话随机种子，确保每次刷新页面图片顺序不同
-        intelligentPreloader: null // 2025-01-27 新增：智能预加载器实例
+        intelligentPreloader: null, // 2025-01-27 新增：智能预加载器实例
+        
+        // 2025-01-31 新增：分批加载和缓存机制
+        loadedImageIds: new Set(), // 已加载图片ID记录
+        batchSize: 16,             // 每批加载数量
+        realTimeDisplay: true,     // 实时显示模式
+        imageCache: new Map(),     // 图片本地缓存
+        cacheExpiry: 24 * 60 * 60 * 1000, // 缓存过期时间24小时
+        batchMode: true,           // 启用分批加载模式
+        
+        // 2025-01-31 新增：分列瀑布流管理
+        columnCount: 3,            // 默认列数
+        columnHeights: [],         // 每列高度记录
+        columns: []                // 列DOM元素引用
     },
     
     /**
@@ -47,6 +64,12 @@ const ImageLoader = {
      */
     async init() {
         try {
+            // 2025-01-31 新增：清理过期缓存
+            this.cleanExpiredCache();
+            
+            // 2025-01-31 新增：初始化分列结构
+            this.initColumnStructure();
+            
             // 2025-01-27 新增：检查URL参数，恢复搜索状态
             this._checkUrlParams();
             
@@ -55,7 +78,7 @@ const ImageLoader = {
             
             // 2024-07-28 新增：加载初始数据和用户权限
             await this._loadInitialDataAndPermissions();
-
+            
             // 添加登录状态变化事件监听
             document.addEventListener('loginStatusChange', (event) => {
                 const { isLoggedIn, userData } = event.detail;
@@ -77,23 +100,44 @@ const ImageLoader = {
             // 2025-01-27 新增：初始化智能预加载器
             this.initIntelligentPreloader();
             
-            // 先尝试从缓存加载
-            if (!this.loadFromCache()) {
-                await this.loadWallpaperDataFromAPI();
+            // 2025-02-01 修复：如果恢复的是收藏视图，直接加载收藏数据，跳过常规数据加载
+            if (this.state.currentDisplayMode === 'favorites_only') {
+                console.log('[ImageLoader] 检测到收藏视图状态，直接加载收藏数据');
+                const favoritesData = await this._loadUserFavoritesFullData();
+                if (favoritesData.length > 0) {
+                    this.state.allWallpapers = favoritesData;
+                    this.state.filteredWallpapers = [...favoritesData];
+                    console.log(`[ImageLoader] 收藏数据恢复成功: ${favoritesData.length}张壁纸`);
+                } else {
+                    console.log('[ImageLoader] 用户无收藏壁纸，切换到默认视图');
+                    this.state.currentDisplayMode = 'normal';
+                    this.state.currentViewMode = 'grid';
+                    // 加载默认数据
+                    if (!this.loadFromCache()) {
+                        await this.loadWallpaperDataFromAPI();
+                    }
+                }
+            } else {
+                // 非收藏视图，正常加载数据
+                if (!this.loadFromCache()) {
+                    await this.loadWallpaperDataFromAPI();
+                }
             }
             
             if (this.state.allWallpapers.length === 0) {
                 throw new Error('API返回数据为空');
             }
             
-            // 2024-07-16 新增：加载用户收藏数据
+            // 2025-02-01 修复：在渲染卡片之前先加载用户收藏数据，确保收藏状态正确显示
             await this._loadUserFavorites();
             
             // 提取分类
             this.extractCategories();
             
             // 2024-12-19 修复：在所有数据加载完成后，重新过滤壁纸以确保被流放图片不会显示
-            this.filterWallpapers();
+            if (this.state.currentDisplayMode !== 'favorites_only') {
+                this.filterWallpapers();
+            }
             
             // 初始化UI
             this.initUI();
@@ -140,7 +184,7 @@ const ImageLoader = {
         
         try {
             // 构建API URL
-            let apiUrl = '/api/wallpaper_data.php?action=list&limit=1000';
+            let apiUrl = '/api/wallpaper_data.php?action=list&limit=2000';  // 修复：加载足够多的数据以支持真正的随机显示
             
             // 如果有搜索关键词，添加搜索参数并忽略视图模式限制
             if (this.state.searchKeyword) {
@@ -627,8 +671,17 @@ const ImageLoader = {
         // 2025-01-27 修复：同步更新所有搜索输入框的值
         this._updateSearchInputs(trimmedKeyword);
         
-        // 2025-01-27 优化：使用统一的状态重置逻辑
-        this._resetViewState();
+        // 2025-01-31 修复：分批模式下只重置必要状态，避免清空容器
+        if (this.state.batchMode) {
+            // 分批模式下只重置加载状态，让renderWallpapersBatch处理容器清空
+            this.state.loadedImageIds.clear();
+            this.state.displayedWallpapers.clear();
+            this.state.currentPage = 0;
+            this.state.hasMoreWallpapers = true;
+        } else {
+            // 非分批模式使用原有逻辑
+            this._resetViewState();
+        }
         
         // 如果有搜索关键词，直接从数据库搜索
         if (this.state.searchKeyword) {
@@ -680,8 +733,18 @@ const ImageLoader = {
         if (this.state.currentCategory === category) return;
         
         this.state.currentCategory = category;
-        // 2025-01-27 优化：使用统一的状态重置逻辑
-        this._resetViewState();
+        
+        // 2025-01-31 修复：分批模式下只重置必要状态，避免清空容器
+        if (this.state.batchMode) {
+            // 分批模式下只重置加载状态，让renderWallpapersBatch处理容器清空
+            this.state.loadedImageIds.clear();
+            this.state.displayedWallpapers.clear();
+            this.state.currentPage = 0;
+            this.state.hasMoreWallpapers = true;
+        } else {
+            // 非分批模式使用原有逻辑
+            this._resetViewState();
+        }
         
         this.filterWallpapers();
         this.renderCategoryNav();
@@ -744,22 +807,30 @@ const ImageLoader = {
             }
         } else if (this.state.currentDisplayMode === 'favorites_only') {
             const beforeFilter = filtered.length;
-            // 列表视图只显示收藏的内容，不受流放限制
-            const favoritedWallpapers = this.state.userFavorites || new Set();
             
-            // 如果用户已登录且有收藏，显示收藏的壁纸（不管是否被流放）
-            if (favoritedWallpapers.size > 0) {
-                filtered = filtered.filter(w => 
-                    favoritedWallpapers.has(w.id)
-                );
+            console.log('[ImageLoader] 收藏模式过滤开始');
+            
+            // 使用新的收藏状态管理逻辑
+            const favoritesLogic = this._getFavoritesDisplayLogic();
+            console.log('[ImageLoader] 收藏状态:', favoritesLogic);
+            
+            if (favoritesLogic.shouldShowFavorites) {
+                // 显示用户收藏的壁纸（不受流放状态限制）
+                filtered = filtered.filter(w => this.state.userFavorites.has(w.id));
+                console.log(`[ImageLoader] 显示收藏壁纸: ${filtered.length}张`);
+                
+                if (filtered.length > 0) {
+                    console.log('[ImageLoader] 收藏壁纸ID:', filtered.slice(0, 5).map(w => w.id));
+                }
             } else {
-                // 如果没有收藏，显示所有未被流放的壁纸
+                // 显示默认内容：未被流放的壁纸
+                console.log('[ImageLoader] 无收藏或未登录，显示默认内容');
                 filtered = filtered.filter(w => {
                     const exileStatus = parseInt(w.exile_status) || 0;
                     return exileStatus === 0;
                 });
+                console.log(`[ImageLoader] 显示默认壁纸: ${filtered.length}张`);
             }
-            console.log(`[ImageLoader] favorites_only模式过滤: ${beforeFilter} -> ${filtered.length}张`);
         }
         
         // 2025-01-27 修复：分类过滤只在正常模式下生效，流放列表和收藏列表不受分类影响
@@ -782,6 +853,11 @@ const ImageLoader = {
         this.state.displayedWallpapers.clear();
         this.state.hasMoreWallpapers = true;
         
+        // 2025-02-01 修复：收藏模式下不清空loadedImageIds，避免数据减少
+        if (this.state.currentDisplayMode !== 'favorites_only') {
+            this.state.loadedImageIds.clear();
+        }
+        
         // 2025-01-27 优化：重新生成会话种子，确保视图切换后图片顺序不同
         this.state.sessionSeed = Date.now().toString();
         
@@ -795,20 +871,7 @@ const ImageLoader = {
         console.log(`[ImageLoader] 状态重置 - 清理了${prevDisplayedCount}张已显示图片，重新生成随机种子`);
     },
 
-    /**
-     * 2025-01-27 新增：检查用户是否已登录
-     * @returns {boolean} 用户是否已登录
-     */
-    _isUserLoggedIn() {
-        // 检查window.currentUser是否存在（由user-menu.js设置）
-        if (window.currentUser && window.currentUser.id) {
-            return true;
-        }
-        
-        // 检查localStorage中的用户数据
-        const userData = JSON.parse(localStorage.getItem('user') || '{}');
-        return userData.id && userData.sessionId;
-    },
+
 
     // 点赞功能已移除 - 原 _loadUserLikes 和 _loadUserLikesFromDatabase 函数
 
@@ -816,9 +879,19 @@ const ImageLoader = {
      * 2024-12-19 新增：统一的视图切换处理函数，包含防抖和状态检查
      */
     _handleViewSwitch(mode) {
-        // 检查页面是否就绪
-        if (!this.state.isPageReady) {
-            console.log('[调试-视图切换] 页面尚未就绪，忽略点击');
+        console.log(`[调试-视图切换] 收到切换请求: ${mode}, 页面就绪状态: ${this.state.isPageReady}`);
+        
+        // 2025-02-01 修复：添加重复点击检查，防止用户重复点击同一视图按钮
+        if (mode === 'grid' && this.state.currentViewMode === 'grid' && this.state.currentDisplayMode === 'normal') {
+            console.log('[调试-视图切换] 已在网格视图，跳过切换');
+            return;
+        }
+        if (mode === 'list' && this.state.currentViewMode === 'list' && this.state.currentDisplayMode === 'favorites_only') {
+            console.log('[调试-视图切换] 已在收藏视图，跳过切换');
+            return;
+        }
+        if (mode === 'exiled_list' && this.state.currentDisplayMode === 'exiled_list') {
+            console.log('[调试-视图切换] 已在流放视图，跳过切换');
             return;
         }
         
@@ -828,6 +901,7 @@ const ImageLoader = {
         }
         
         this.state.viewSwitchDebounce = setTimeout(async () => {
+            console.log(`[调试-视图切换] 执行切换到: ${mode}`);
             if (mode === 'exiled_list') {
                 this._handleExiledListView();
             } else {
@@ -839,52 +913,107 @@ const ImageLoader = {
     /**
      * 切换视图模式
      */
+    /**
+     * 2025-02-01 重构：简化视图模式切换逻辑
+     */
     async switchViewMode(mode) {
-        if (this.state.currentViewMode === mode && this.state.currentDisplayMode === 'normal') return;
+        if (this.state.currentViewMode === mode && this.state.currentDisplayMode === 'normal') {
+            console.log(`[ImageLoader] 视图模式无变化，跳过切换`);
+            return;
+        }
+        
+        console.log(`[ImageLoader] 切换视图模式: ${this.state.currentViewMode} -> ${mode}`);
         
         // 记录之前的显示模式
         const previousDisplayMode = this.state.currentDisplayMode;
         
-        // 2025-01-27 修复：切换视图时清空搜索状态
+        // 清空搜索状态
         this._clearSearchState();
         
-        // 2025-01-27 优化：统一状态重置逻辑，确保去重正确
+        // 重置视图状态
         this._resetViewState();
         
         this.state.currentViewMode = mode;
         
-        // 2024-12-19 新增：列表视图显示收藏内容
+        // 设置显示模式
         if (mode === 'list') {
+            console.log(`[ImageLoader] 切换到收藏模式`);
             this.state.currentDisplayMode = 'favorites_only';
+            
+            // 2025-02-01 修复：切换到收藏模式时清空已加载图片记录，避免数据减少
+            this.state.loadedImageIds.clear();
+            console.log('[ImageLoader] 收藏模式：清空已加载图片记录');
+            
+            // 2025-02-01 修复：确保用户已登录且有收藏数据
+            const isLoggedIn = this._isUserLoggedIn();
+            if (!isLoggedIn) {
+                console.log(`[ImageLoader] 用户未登录，无法显示收藏，切换到默认视图`);
+                this.state.currentDisplayMode = 'normal';
+                this.state.currentViewMode = 'grid';
+                await this.loadWallpaperDataFromAPI();
+            } else {
+                // 2025-02-01 优化：直接获取完整收藏数据，不依赖过滤
+                console.log(`[ImageLoader] 开始加载完整收藏壁纸数据...`);
+                const favoritesData = await this._loadUserFavoritesFullData();
+                
+                if (favoritesData.length > 0) {
+                    console.log(`[ImageLoader] 收藏数据加载成功: ${favoritesData.length}张壁纸`);
+                    // 直接使用收藏数据作为allWallpapers，跳过常规数据加载
+                    this.state.allWallpapers = favoritesData;
+                    this.state.filteredWallpapers = [...favoritesData];
+                } else {
+                    console.log(`[ImageLoader] 用户无收藏壁纸，显示默认内容`);
+                    // 如果没有收藏，加载默认壁纸数据
+                    this.state.currentDisplayMode = 'normal';
+                    this.state.currentViewMode = 'grid';
+                    await this.loadWallpaperDataFromAPI();
+                }
+            }
         } else if (mode === 'grid') {
+            console.log(`[ImageLoader] 切换到网格模式`);
             this.state.currentDisplayMode = 'normal';
         }
 
-        // 新增：保存视图状态
+        // 保存视图状态和更新页面标题
         this._saveViewState();
-        
-        // 新增：更新页面标题
         this._updatePageTitle();
-
         this.updateViewMode(mode);
         
-        // 2025-01-27 修复：如果显示模式发生变化，需要重新加载数据
-        if (previousDisplayMode !== this.state.currentDisplayMode) {
-            try {
-                console.log(`[ImageLoader] 显示模式从 ${previousDisplayMode} 切换到 ${this.state.currentDisplayMode}，重新加载数据`);
-                await this.loadWallpaperDataFromAPI();
+        // 重新渲染内容
+        try {
+            console.log(`[ImageLoader] 显示模式变化: ${previousDisplayMode} -> ${this.state.currentDisplayMode}`);
+            
+            // 2025-02-01 优化：收藏模式已经直接设置了数据，其他模式才需要重新加载
+            if (this.state.currentDisplayMode !== 'favorites_only') {
+                // 非收藏模式：如果显示模式发生变化，重新加载数据
+                if (previousDisplayMode !== this.state.currentDisplayMode) {
+                    console.log(`[ImageLoader] 显示模式变化，重新加载数据`);
+                    await this.loadWallpaperDataFromAPI();
+                }
+                
+                // 重新过滤
+                console.log(`[ImageLoader] 开始过滤壁纸`);
                 this.filterWallpapers();
-                this.renderWallpapers();
-            } catch (error) {
-                console.error('[ImageLoader] 切换视图模式时重新加载数据失败:', error);
-                this.showErrorMessage('切换视图失败，请重试');
             }
-        } else {
-            this.filterWallpapers(); // 重新过滤以应用新的displayMode
+            
+            console.log(`[ImageLoader] 开始渲染 ${this.state.filteredWallpapers.length} 张壁纸`);
+            
+            // 调试信息
+            if (this.state.filteredWallpapers.length === 0) {
+                console.warn('[ImageLoader] 警告：没有壁纸数据可渲染！');
+                console.log(`[ImageLoader] 原始数据量: ${this.state.allWallpapers.length}`);
+                console.log(`[ImageLoader] 当前显示模式: ${this.state.currentDisplayMode}`);
+            }
+            
             this.renderWallpapers();
+            this.updateLoadMoreButton();
+            
+            console.log(`[ImageLoader] 视图切换完成`);
+            
+        } catch (error) {
+            console.error('[ImageLoader] 切换视图模式失败:', error);
+            this.showErrorMessage('切换视图失败，请重试');
         }
-        
-        this.updateLoadMoreButton(); // 更新加载更多按钮状态
     },
 
     /**
@@ -909,6 +1038,9 @@ const ImageLoader = {
         }
         container.className = containerClass;
         
+        // 重新初始化分列结构以适应新的视图模式
+        this.initColumnStructure();
+        
         // 更新按钮状态
         if (gridBtn && listBtn && exiledBtn) {
             // 重置所有按钮状态
@@ -919,7 +1051,7 @@ const ImageLoader = {
             // 设置当前活动按钮状态
             if (mode === 'grid' && this.state.currentDisplayMode === 'normal') {
                 gridBtn.className = 'p-2 rounded bg-primary text-white';
-            } else if (mode === 'list' && this.state.currentDisplayMode === 'normal') {
+            } else if (mode === 'list' && (this.state.currentDisplayMode === 'normal' || this.state.currentDisplayMode === 'favorites_only')) {
                 listBtn.className = 'p-2 rounded bg-primary text-white';
             }
             // 流放列表按钮的高亮状态在_handleExiledListView中单独处理
@@ -933,12 +1065,17 @@ const ImageLoader = {
         const container = document.getElementById('wallpaper-container');
         if (!container) return;
         
+        // 2025-01-31 新增：分批加载模式
+        if (this.state.batchMode) {
+            return await this.renderWallpapersBatch(append);
+        }
+        
         if (!append) {
-            // 2025-01-27 优化：使用统一的状态重置函数
+            // 2025-01-27 优化：使用统一的状态重置函数（仅在非分批模式下）
             this._resetViewState();
         }
         
-        // 2025-01-27 修复：从改进的分页函数获取壁纸
+        // 原有的分页模式（保持兼容性）
         const wallpapersToShow = this._getPaginatedRandomWallpapers();
         
         if (wallpapersToShow.length === 0 && !append) {
@@ -946,8 +1083,10 @@ const ImageLoader = {
             return;
         }
         
-        // 创建壁纸卡片
-        const fragment = document.createDocumentFragment();
+        // 2025-01-30 修复：确保分列结构存在
+        if (this.state.columns.length === 0) {
+            this.initColumnStructure();
+        }
         
         // 2025-01-27 优化：双重去重保护，确保绝对不会有重复图片
         const uniqueWallpapers = wallpapersToShow.filter(wallpaper => {
@@ -962,7 +1101,10 @@ const ImageLoader = {
         
         for (const wallpaper of uniqueWallpapers) {
             const card = await this.createWallpaperCard(wallpaper);
-            fragment.appendChild(card);
+            
+            // 2025-01-30 修复：使用分列结构添加卡片
+            this.addImageToColumn(card, wallpaper);
+            
             this.state.displayedWallpapers.add(wallpaper.id);
 
             // 2024-07-26 修复：直接在此处检查收藏状态，确保与当前wallpaper关联
@@ -976,10 +1118,210 @@ const ImageLoader = {
             // 点赞状态检查已删除
         }
         
-        container.appendChild(fragment);
+        // 更新加载更多按钮状态
+        this.updateLoadMoreButton();
+    },
+
+    /**
+     * 2025-01-31 新增：初始化分列结构
+     */
+    initColumnStructure() {
+        const container = document.getElementById('wallpaper-container');
+        if (!container) return;
+        
+        // 计算当前屏幕应显示的列数
+        this.updateColumnCount();
+        
+        // 清空容器并创建列结构
+        container.innerHTML = '';
+        this.state.columns = [];
+        this.state.columnHeights = [];
+        
+        for (let i = 0; i < this.state.columnCount; i++) {
+            const column = document.createElement('div');
+            column.className = 'masonry-column';
+            column.id = `masonry-column-${i}`;
+            container.appendChild(column);
+            
+            this.state.columns.push(column);
+            this.state.columnHeights.push(0);
+        }
+        
+        console.log(`[ImageLoader] 初始化${this.state.columnCount}列瀑布流结构`);
+    },
+    
+    /**
+     * 2025-01-31 新增：根据屏幕宽度动态计算列数
+     */
+    updateColumnCount() {
+        const width = window.innerWidth;
+        let newColumnCount;
+        
+        // 2025-02-01 修复：收藏视图固定使用3列布局
+        if (this.state.currentDisplayMode === 'favorites_only') {
+            newColumnCount = 3;
+        } else {
+            if (width >= 1280) {
+                newColumnCount = 4;
+            } else if (width >= 1024) {
+                newColumnCount = 3;
+            } else if (width >= 768) {
+                newColumnCount = 2;
+            } else {
+                newColumnCount = 1;
+            }
+        }
+        
+        // 如果列数发生变化，重新初始化列结构
+        if (newColumnCount !== this.state.columnCount) {
+            this.state.columnCount = newColumnCount;
+            console.log(`[ImageLoader] 列数变更为: ${newColumnCount} (模式: ${this.state.currentDisplayMode})`);
+            return true; // 返回true表示列数发生了变化
+        }
+        
+        return false;
+    },
+    
+    /**
+     * 2025-01-31 新增：将图片卡片添加到最短的列
+     */
+    addImageToColumn(card, wallpaper) {
+        if (this.state.columns.length === 0) {
+            console.warn('[ImageLoader] 列结构未初始化');
+            return;
+        }
+        
+        // 找到当前最短的列
+        const minHeight = Math.min(...this.state.columnHeights);
+        const columnIndex = this.state.columnHeights.indexOf(minHeight);
+        const targetColumn = this.state.columns[columnIndex];
+        
+        // 添加到目标列
+        targetColumn.appendChild(card);
+        
+        // 预估高度（后续图片加载完成后会更新）
+        const estimatedHeight = this.estimateCardHeight(wallpaper);
+        this.state.columnHeights[columnIndex] += estimatedHeight;
+        
+        console.log(`[ImageLoader] 图片${wallpaper.id}添加到第${columnIndex + 1}列，预估高度: ${estimatedHeight}px`);
+        
+        return columnIndex;
+    },
+    
+    /**
+     * 2025-01-31 新增：预估卡片高度
+     */
+    estimateCardHeight(wallpaper) {
+        // 基础卡片高度（包括padding、margin等）
+        const baseHeight = 20;
+        
+        // 如果有图片尺寸信息，计算实际高度
+        if (wallpaper.width && wallpaper.height) {
+            const columnWidth = this.getColumnWidth();
+            const imageHeight = (wallpaper.height / wallpaper.width) * columnWidth;
+            return imageHeight + baseHeight;
+        }
+        
+        // 默认预估高度
+        return 250;
+    },
+    
+    /**
+     * 2025-01-31 新增：获取列宽度
+     */
+    getColumnWidth() {
+        if (this.state.columns.length > 0) {
+            return this.state.columns[0].offsetWidth;
+        }
+        
+        // 估算列宽度
+        const container = document.getElementById('wallpaper-container');
+        if (container) {
+            const containerWidth = container.offsetWidth;
+            const gap = 16; // 1rem = 16px
+            return (containerWidth - (gap * (this.state.columnCount - 1))) / this.state.columnCount;
+        }
+        
+        return 300; // 默认宽度
+    },
+    
+    /**
+     * 2025-01-31 新增：更新列高度（图片加载完成后调用）
+     */
+    updateColumnHeight(columnIndex, actualHeight, estimatedHeight) {
+        if (columnIndex >= 0 && columnIndex < this.state.columnHeights.length) {
+            // 更新列高度：减去预估高度，加上实际高度
+            this.state.columnHeights[columnIndex] += (actualHeight - estimatedHeight);
+            console.log(`[ImageLoader] 第${columnIndex + 1}列高度更新: ${this.state.columnHeights[columnIndex]}px`);
+        }
+    },
+
+    /**
+     * 2025-01-31 新增：分批渲染壁纸，支持实时显示
+     * 每加载完一张图片就立即显示
+     */
+    async renderWallpapersBatch(append = false, wallpapersData = null) {
+        const container = document.getElementById('wallpaper-container');
+        if (!container) return;
+        
+        // 只有在真正的初始加载时才重新初始化列结构
+        if (!append && this.state.loadedImageIds.size === 0) {
+            this.initColumnStructure();
+            this.state.displayedWallpapers.clear();
+            this.state.loadedImageIds.clear();
+        }
+        
+        // 获取分批数据：如果传入了数据则使用传入的，否则从API获取
+        let wallpapers, hasMore;
+        if (wallpapersData) {
+            wallpapers = wallpapersData.wallpapers;
+            hasMore = wallpapersData.hasMore;
+        } else {
+            const batchResult = await this.loadBatchWallpapers();
+            wallpapers = batchResult.wallpapers;
+            hasMore = batchResult.hasMore;
+        }
+        
+        if (wallpapers.length === 0 && !append) {
+            // 在第一列显示无数据提示
+            if (this.state.columns.length > 0) {
+                this.state.columns[0].innerHTML = '<div class="text-center py-12 text-gray-500">暂无壁纸</div>';
+            }
+            return;
+        }
+        
+        console.log(`[ImageLoader] 开始分批渲染: ${wallpapers.length}张图片`);
+        
+        // 实时渲染每张图片到分列结构
+        for (const wallpaper of wallpapers) {
+            if (!this.state.loadedImageIds.has(wallpaper.id)) {
+                const card = await this.createWallpaperCard(wallpaper);
+                
+                // 添加到最短的列
+                const columnIndex = this.addImageToColumn(card, wallpaper);
+                
+                // 记录已加载的图片
+                this.state.loadedImageIds.add(wallpaper.id);
+                this.state.displayedWallpapers.add(wallpaper.id);
+                
+                // 立即加载图片（实时显示）
+                this.loadCardImageRealTimeWithColumn(card, wallpaper, columnIndex);
+                
+                // 检查收藏状态
+                const favoriteButton = card.querySelector('.card-favorite-btn');
+                if (favoriteButton) {
+                    const wallpaperId = parseInt(favoriteButton.dataset.wallpaperId);
+                    if (!isNaN(wallpaperId)) {
+                        await this._checkCardFavoriteStatus(wallpaperId, favoriteButton);
+                    }
+                }
+            }
+        }
         
         // 更新加载更多按钮状态
         this.updateLoadMoreButton();
+        
+        console.log(`[ImageLoader] 分批渲染完成: 已加载${this.state.loadedImageIds.size}张图片`);
     },
 
     /**
@@ -995,6 +1337,7 @@ const ImageLoader = {
         const isFavorited = this.state.userFavorites.has(wallpaper.id);
         const favoriteIconSrc = isFavorited ? 'static/icons/fa-star.svg' : 'static/icons/fa-star-o.svg';
         const favoriteIconClass = isFavorited ? 'favorited' : '';
+        const favoriteBtnClass = isFavorited ? 'favorited' : '';
         
         // 创建占位符，先显示加载状态
         card.innerHTML = `
@@ -1008,7 +1351,7 @@ const ImageLoader = {
                     </button>
                 </div>
                 <!-- 2024-07-26 添加：首页收藏按钮 -->
-                <button class="card-favorite-btn absolute top-2 right-2 p-2 rounded-full bg-white/80 backdrop-blur-sm shadow-md text-gray-500 hover:text-red-500 transition-colors z-10" data-wallpaper-id="${wallpaper.id}">
+                <button class="card-favorite-btn absolute top-2 right-2 p-2 rounded-full bg-white/80 backdrop-blur-sm shadow-md text-gray-500 hover:text-red-500 transition-colors z-10 ${favoriteBtnClass}" data-wallpaper-id="${wallpaper.id}">
                     <img src="${favoriteIconSrc}" alt="收藏" class="w-4 h-4 card-favorite-icon ${favoriteIconClass}">
                 </button>
                 <!-- 点赞按钮已删除 -->
@@ -1282,47 +1625,74 @@ const ImageLoader = {
             // 规范化路径，确保以static开头 (如果原始路径没有斜杠开头)
             const normalizedPath = originalPath.startsWith('/') ? originalPath : `/${originalPath}`;
             
-            // 环境检测：本地使用TOKEN化，线上直接使用file_path
-            if (Utils.isLocalhost()) {
-                // 本地环境：优先使用TOKEN化访问
-                if (window.ImageTokenManager && wallpaperId) {
-                    try {
-                        console.log(`[ImageLoader] 本地环境使用Token化: ${wallpaperId}`);
-                        
-                        const tokenizedUrl = await window.ImageTokenManager.buildTokenizedUrl(
-                            wallpaperId, 
-                            'original', 
-                            { 
-                                quality: 85,
-                                imagePath: normalizedPath
-                            }
-                        );
-                        
-                        if (tokenizedUrl && !tokenizedUrl.includes('buildFallbackUrl')) {
-                            console.log(`[ImageLoader] 本地环境Token化成功: ${tokenizedUrl}`);
-                            return tokenizedUrl;
-                        }
-                    } catch (tokenError) {
-                        console.warn('[ImageLoader] 本地环境Token化失败，回退到传统方式:', tokenError);
-                    }
-                }
-                
-                // 本地环境回退到传统方式
-                const compressedUrl = await ImageCompressor.getCompressedImageUrl(normalizedPath, 'preview');
-                console.log(`[ImageLoader] 本地环境使用传统方式: ${normalizedPath} -> ${compressedUrl}`);
-                return compressedUrl;
-            } else {
-                // 线上环境：直接使用wallpapers表的file_path，转换为预览图路径
-                const previewPath = Utils.getImagePath(normalizedPath, null, true);
-                console.log(`[ImageLoader] 线上环境直接使用预览图路径: ${normalizedPath} -> ${previewPath}`);
-                return previewPath;
+            // 2025-01-30 性能优化：统一使用preview路径，提升加载速度
+            // 直接转换为preview路径，避免复杂的Token化和压缩逻辑
+            const previewPath = normalizedPath.replace('static/wallpapers/', 'static/preview/');
+            
+            // 2025-01-30 修复：正确处理preview路径转换和URL编码
+            console.log(`[ImageLoader] 路径转换: ${normalizedPath} -> ${previewPath}`);
+            
+            // 检查是否成功转换为preview路径
+            if (previewPath !== normalizedPath) {
+                // 成功转换为preview路径，进行URL编码处理中文字符
+                const encodedPreviewPath = this._encodeImagePath(previewPath);
+                console.log(`[ImageLoader] 使用编码后的preview路径: ${encodedPreviewPath}`);
+                return encodedPreviewPath;
             }
+            
+            // 如果没有转换成功（不是wallpapers路径），尝试Token化（仅本地环境）
+            if (Utils.isLocalhost() && window.ImageTokenManager && wallpaperId) {
+                try {
+                    console.log(`[ImageLoader] preview转换失败，尝试Token化: ${wallpaperId}`);
+                    
+                    const tokenizedUrl = await window.ImageTokenManager.buildTokenizedUrl(
+                        wallpaperId, 
+                        'preview', 
+                        { 
+                            quality: 85,
+                            imagePath: normalizedPath
+                        }
+                    );
+                    
+                    if (tokenizedUrl && !tokenizedUrl.includes('buildFallbackUrl')) {
+                        console.log(`[ImageLoader] Token化成功: ${tokenizedUrl}`);
+                        return tokenizedUrl;
+                    }
+                } catch (tokenError) {
+                    console.warn('[ImageLoader] Token化失败:', tokenError);
+                }
+            }
+            
+            // 最后回退到编码后的原始路径
+            const encodedOriginalPath = this._encodeImagePath(normalizedPath);
+            console.log(`[ImageLoader] 回退到编码后的原始路径: ${encodedOriginalPath}`);
+            return encodedOriginalPath;
         } catch (error) {
             console.warn('[ImageLoader] 获取压缩图片URL失败:', error);
             return originalPath;
         }
     },
     
+    /**
+     * 2025-01-30 新增：编码图片路径，处理中文字符
+     * @param {string} imagePath - 原始图片路径
+     * @returns {string} 编码后的路径
+     */
+    _encodeImagePath(imagePath) {
+        try {
+            // 分割路径和文件名
+            const pathParts = imagePath.split('/');
+            const encodedParts = pathParts.map(part => {
+                // 对每个路径部分进行URL编码，但保留斜杠
+                return encodeURIComponent(part);
+            });
+            return encodedParts.join('/');
+        } catch (error) {
+            console.warn(`[ImageLoader] _encodeImagePath: 编码失败，使用原始路径: ${imagePath}`, error);
+            return imagePath;
+        }
+    },
+
     /**
      * 2025-01-27 新增：从图片路径中提取壁纸ID
      * @param {string} imagePath 图片路径
@@ -1372,6 +1742,19 @@ const ImageLoader = {
         // 2025-01-27 新增：如果正在进行流放/召回操作，阻止加载更多
         if (this.state.isExileRecallInProgress) {
             console.log('[ImageLoader] 流放/召回操作进行中，跳过loadMore');
+            return;
+        }
+        
+        // 2025-01-31 新增：分批加载模式
+        if (this.state.batchMode) {
+            // 先获取数据，然后传递给渲染方法，避免重复获取
+            const batchResult = await this.loadBatchWallpapers();
+            if (batchResult.wallpapers.length > 0) {
+                await this.renderWallpapersBatch(true, batchResult);
+                console.log('[ImageLoader] 分批加载更多完成');
+            } else {
+                console.log('[ImageLoader] 没有更多数据可加载');
+            }
             return;
         }
         
@@ -1490,24 +1873,27 @@ const ImageLoader = {
         const favoriteIcon = favoriteBtn.querySelector('.card-favorite-icon');
         if (!favoriteIcon) return;
 
-        try {
-            const response = await this._fetchJson('api/my_favorites.php', 'GET');
-            if (response.code === 0 && response.data) {
-                const isFavorited = response.data.some(favWallpaper => favWallpaper.id === wallpaperId);
-                if (isFavorited) {
-                    favoriteIcon.src = 'static/icons/fa-star.svg';
-                    favoriteBtn.classList.add('favorited');
-                } else {
-                    favoriteIcon.src = 'static/icons/fa-star-o.svg';
-                    favoriteBtn.classList.remove('favorited');
-                }
-            } else if (response.code === 401) {
-                // 用户未登录，恢复默认状态
-                favoriteIcon.src = 'static/icons/fa-star-o.svg';
-                favoriteBtn.classList.remove('favorited');
-            }
-        } catch (error) {
-            // 忽略错误，不显示
+        // 使用本地已加载的收藏数据，避免重复请求
+        if (!this._isUserLoggedIn()) {
+            // 用户未登录，恢复默认状态
+            favoriteIcon.src = 'static/icons/fa-star-o.svg';
+            favoriteBtn.classList.remove('favorited');
+            return;
+        }
+
+        // 如果收藏数据还未加载，先加载
+        if (!this.state.favoritesLoaded) {
+            await this._loadUserFavorites();
+        }
+
+        // 使用本地收藏数据检查状态
+        const isFavorited = this.state.userFavorites.has(wallpaperId);
+        if (isFavorited) {
+            favoriteIcon.src = 'static/icons/fa-star.svg';
+            favoriteBtn.classList.add('favorited');
+        } else {
+            favoriteIcon.src = 'static/icons/fa-star-o.svg';
+            favoriteBtn.classList.remove('favorited');
         }
     },
 
@@ -1540,11 +1926,16 @@ const ImageLoader = {
             });
 
             if (response.code === 0) {
+                // 2025-02-01 修复：先更新本地状态
                 if (response.action === 'favorited') {
+                    this.state.userFavorites.add(wallpaperId);
                     favoriteIcon.src = 'static/icons/fa-star.svg';
+                    favoriteIcon.classList.add('favorited');
                     button.classList.add('favorited');
                 } else if (response.action === 'unfavorited') {
+                    this.state.userFavorites.delete(wallpaperId);
                     favoriteIcon.src = 'static/icons/fa-star-o.svg';
+                    favoriteIcon.classList.remove('favorited');
                     button.classList.remove('favorited');
                 }
 
@@ -1646,6 +2037,20 @@ const ImageLoader = {
             return wallpapersToPickFrom.slice(0, numToTake);
         }
 
+        // 收藏模式：从过滤后的收藏壁纸中选择未显示的
+        if (this.state.currentDisplayMode === 'favorites_only') {
+            const wallpapersToPickFrom = this.state.filteredWallpapers.filter(
+                w => !this.state.displayedWallpapers.has(w.id)
+            );
+            
+            if (wallpapersToPickFrom.length === 0) {
+                return [];
+            }
+            
+            const numToTake = Math.min(this.state.itemsPerPage, wallpapersToPickFrom.length);
+            return wallpapersToPickFrom.slice(0, numToTake);
+        }
+
         // 正常模式：使用改进的分页策略确保所有图片都能被加载
         const wallpapersToPickFrom = this.state.filteredWallpapers.filter(
             w => !this.state.displayedWallpapers.has(w.id)
@@ -1693,6 +2098,271 @@ const ImageLoader = {
     },
 
     /**
+     * 2025-01-31 新增：分批从API获取壁纸数据
+     * 每次获取16张图片，排除已加载的图片
+     */
+    async loadBatchWallpapers() {
+        if (this.state.isLoading) {
+            console.log('[ImageLoader] 正在加载中，跳过重复请求');
+            return { wallpapers: [], hasMore: false };
+        }
+
+        this.state.isLoading = true;
+        
+        try {
+            // 收藏模式：直接从allWallpapers获取未加载的壁纸
+            if (this.state.currentDisplayMode === 'favorites_only') {
+                console.log(`[ImageLoader] 收藏模式分批加载: 总数据${this.state.allWallpapers.length}张，已加载${this.state.loadedImageIds.size}张`);
+                
+                // 从allWallpapers中获取未加载的壁纸
+                const unloadedWallpapers = this.state.allWallpapers.filter(wallpaper => 
+                    !this.state.loadedImageIds.has(wallpaper.id)
+                );
+                
+                const batchWallpapers = unloadedWallpapers.slice(0, this.state.batchSize);
+                console.log(`[ImageLoader] 收藏模式分批加载: 获取${batchWallpapers.length}张收藏图片`);
+                
+                return {
+                    wallpapers: batchWallpapers,
+                    hasMore: unloadedWallpapers.length > this.state.batchSize
+                };
+            }
+            
+            const params = new URLSearchParams({
+                batch_mode: 'true',
+                category: this.state.currentCategory,
+                search: this.state.searchKeyword,
+                exile_status: this.state.currentDisplayMode === 'exiled_list' ? 'exiled' : 'normal'
+            });
+            
+            // 只有当已加载图片不为空时才添加exclude_ids参数
+            if (this.state.loadedImageIds.size > 0) {
+                const excludeIds = Array.from(this.state.loadedImageIds).join(',');
+                params.set('exclude_ids', excludeIds);
+                console.log(`[ImageLoader] 分批加载请求: 排除${this.state.loadedImageIds.size}张已加载图片`);
+            } else {
+                console.log('[ImageLoader] 初始分批加载请求');
+            }
+            
+            const response = await fetch(`api/wallpaper_data.php?${params}`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.code === 0 && data.data && data.data.wallpapers) {
+                console.log(`[ImageLoader] 分批加载成功: 获取${data.data.wallpapers.length}张新图片`);
+                return {
+                    wallpapers: data.data.wallpapers,
+                    hasMore: data.data.wallpapers.length === this.state.batchSize
+                };
+            } else {
+                console.warn('[ImageLoader] 分批加载失败:', data.msg || '未知错误');
+                return { wallpapers: [], hasMore: false };
+            }
+            
+        } catch (error) {
+            console.error('[ImageLoader] 分批加载异常:', error);
+            this.showError('加载图片失败，请稍后重试');
+            return { wallpapers: [], hasMore: false };
+        } finally {
+            this.state.isLoading = false;
+        }
+    },
+
+    /**
+     * 2025-01-31 新增：图片缓存管理
+     * 缓存已加载的图片，避免重复加载
+     */
+    cacheImage(imageUrl, imageData) {
+        const cacheKey = imageUrl;
+        const cacheItem = {
+            data: imageData,
+            timestamp: Date.now(),
+            url: imageUrl
+        };
+        
+        this.state.imageCache.set(cacheKey, cacheItem);
+        console.log(`[ImageLoader] 图片已缓存: ${imageUrl}`);
+    },
+
+    /**
+     * 2025-01-31 新增：从缓存获取图片
+     */
+    getCachedImage(imageUrl) {
+        const cacheKey = imageUrl;
+        const cacheItem = this.state.imageCache.get(cacheKey);
+        
+        if (!cacheItem) {
+            return null;
+        }
+        
+        // 检查缓存是否过期
+        const isExpired = (Date.now() - cacheItem.timestamp) > this.state.cacheExpiry;
+        if (isExpired) {
+            this.state.imageCache.delete(cacheKey);
+            console.log(`[ImageLoader] 缓存已过期，已清除: ${imageUrl}`);
+            return null;
+        }
+        
+        console.log(`[ImageLoader] 使用缓存图片: ${imageUrl}`);
+        return cacheItem;
+    },
+
+    /**
+     * 2025-01-31 新增：清理过期缓存
+     */
+    cleanExpiredCache() {
+        const now = Date.now();
+        let cleanedCount = 0;
+        
+        for (const [key, item] of this.state.imageCache.entries()) {
+            if ((now - item.timestamp) > this.state.cacheExpiry) {
+                this.state.imageCache.delete(key);
+                cleanedCount++;
+            }
+        }
+        
+        if (cleanedCount > 0) {
+            console.log(`[ImageLoader] 清理过期缓存: ${cleanedCount}个项目`);
+        }
+    },
+
+    /**
+     * 2025-01-31 新增：实时图片加载（支持缓存）
+     * 每张图片加载完成后立即显示，不等待整批完成
+     */
+    async loadCardImageRealTime(card, wallpaper) {
+        const img = card.querySelector('.wallpaper-image');
+        if (!img) return;
+        
+        try {
+            // 获取压缩图片URL
+            const compressedUrl = await this.getCompressedImageUrl(wallpaper.file_path, wallpaper.id);
+            
+            // 检查缓存
+            const cachedImage = this.getCachedImage(compressedUrl);
+            if (cachedImage) {
+                img.src = compressedUrl;
+                img.style.opacity = '1';
+                card.classList.remove('loading');
+                return;
+            }
+            
+            // 创建新的Image对象进行预加载
+            const imageLoader = new Image();
+            
+            imageLoader.onload = () => {
+                // 缓存图片
+                this.cacheImage(compressedUrl, {
+                    width: imageLoader.naturalWidth,
+                    height: imageLoader.naturalHeight,
+                    loaded: true
+                });
+                
+                // 立即显示图片
+                img.src = compressedUrl;
+                img.style.opacity = '1';
+                card.classList.remove('loading');
+                
+                console.log(`[ImageLoader] 实时加载完成: ${wallpaper.title || wallpaper.id}`);
+            };
+            
+            imageLoader.onerror = () => {
+                console.error(`[ImageLoader] 图片加载失败: ${compressedUrl}`);
+                img.style.opacity = '0.5';
+                card.classList.add('error');
+            };
+            
+            // 开始加载
+            imageLoader.src = compressedUrl;
+            
+        } catch (error) {
+            console.error('[ImageLoader] 实时加载异常:', error);
+            img.style.opacity = '0.5';
+            card.classList.add('error');
+        }
+    },
+
+    /**
+     * 2025-01-31 新增：支持分列布局的实时图片加载
+     * 图片加载完成后更新列高度
+     */
+    async loadCardImageRealTimeWithColumn(card, wallpaper, columnIndex) {
+        const img = card.querySelector('.wallpaper-image');
+        if (!img) return;
+        
+        try {
+            // 获取压缩图片URL
+            const compressedUrl = await this.getCompressedImageUrl(wallpaper.file_path, wallpaper.id);
+            
+            // 检查缓存
+            const cachedImage = this.getCachedImage(compressedUrl);
+            if (cachedImage) {
+                this.displayCachedImageWithColumn(card, compressedUrl, columnIndex);
+                return;
+            }
+            
+            // 创建新的Image对象进行预加载
+            const imageLoader = new Image();
+            
+            imageLoader.onload = () => {
+                // 缓存图片
+                this.cacheImage(compressedUrl, {
+                    width: imageLoader.naturalWidth,
+                    height: imageLoader.naturalHeight,
+                    loaded: true
+                });
+                
+                // 立即显示图片
+                img.src = compressedUrl;
+                img.style.opacity = '1';
+                card.classList.remove('loading');
+                
+                // 更新列高度
+                const actualHeight = card.offsetHeight;
+                const estimatedHeight = this.estimateCardHeight(wallpaper);
+                this.updateColumnHeight(columnIndex, actualHeight, estimatedHeight);
+                
+                console.log(`[ImageLoader] 分列实时加载完成: ${wallpaper.title || wallpaper.id}`);
+            };
+            
+            imageLoader.onerror = () => {
+                console.error(`[ImageLoader] 图片加载失败: ${compressedUrl}`);
+                img.style.opacity = '0.5';
+                card.classList.add('error');
+            };
+            
+            // 开始加载
+            imageLoader.src = compressedUrl;
+            
+        } catch (error) {
+            console.error('[ImageLoader] 分列实时加载异常:', error);
+            img.style.opacity = '0.5';
+            card.classList.add('error');
+        }
+    },
+
+    /**
+     * 2025-01-31 新增：显示缓存图片并更新列高度
+     */
+    displayCachedImageWithColumn(card, imageUrl, columnIndex) {
+        const img = card.querySelector('.wallpaper-image');
+        if (!img) return;
+        
+        img.src = imageUrl;
+        img.style.opacity = '1';
+        card.classList.remove('loading');
+        
+        // 等待DOM更新后获取实际高度
+        setTimeout(() => {
+            const actualHeight = card.offsetHeight;
+            this.state.columnHeights[columnIndex] = actualHeight;
+        }, 10);
+    },
+
+    /**
      * 处理详情页收藏状态变化事件
      * @param {number} wallpaperId - 壁纸ID
      * @param {string} action - 操作类型 ('favorited' 或 'unfavorited')
@@ -1727,24 +2397,188 @@ const ImageLoader = {
     /**
      * 2024-07-16 新增：加载用户收藏数据
      */
-    async _loadUserFavorites() {
+    /**
+     * 2025-02-01 重构：统一的收藏数据管理
+     * 负责加载、缓存和同步用户收藏数据
+     */
+    async _loadUserFavorites(forceReload = false) {
+        // 防止重复加载
+        if (this.state.favoritesLoading) {
+            console.log('[ImageLoader] 收藏数据正在加载中，跳过重复请求');
+            return;
+        }
+        
+        // 如果已加载且不强制重新加载，直接返回
+        if (this.state.favoritesLoaded && !forceReload) {
+            console.log('[ImageLoader] 收藏数据已加载，使用缓存数据');
+            return;
+        }
+        
+        this.state.favoritesLoading = true;
+        
         try {
-            // 2024-07-16 调试：确保请求的URL和方法正确
+            // 检查用户登录状态
+            const userData = JSON.parse(localStorage.getItem('user') || '{}');
+            console.log('[ImageLoader] 检查用户登录状态:', !!userData.id);
+            
+            if (!userData.id) {
+                console.log('[ImageLoader] 用户未登录，清空收藏数据');
+                this._clearFavoritesState();
+                return;
+            }
+            
+            console.log('[ImageLoader] 开始加载用户收藏数据...');
             const response = await this._fetchJson('api/my_favorites.php', 'GET');
             
-            // 2024-07-16 调试：检查响应结构，确保data是数组且包含id
             if (response.code === 0 && Array.isArray(response.data)) {
-                // 将收藏的wallpaper_id转换为Set，方便快速查找
-                this.state.userFavorites = new Set(response.data.map(item => item.id));
-                console.log('[ImageLoader] 用户收藏加载成功:', this.state.userFavorites);
+                // 更新收藏状态 - API直接返回wallpaper_id数组
+                this.state.userFavorites = new Set(response.data);
+                this.state.favoritesLoaded = true;
+                
+                console.log('[ImageLoader] 收藏数据加载成功:', {
+                    count: this.state.userFavorites.size,
+                    ids: Array.from(this.state.userFavorites).slice(0, 5) // 只显示前5个ID
+                });
+                
+                // 更新所有已渲染卡片的收藏状态
+                this._updateAllCardsFavoriteStatus();
+                
+                // 派发收藏数据更新事件
+                this._dispatchFavoritesUpdateEvent();
+                
+            } else if (response.code === 401) {
+                console.log('[ImageLoader] 用户未登录或登录已过期');
+                this._clearFavoritesState();
             } else {
-                console.error('[ImageLoader] 加载用户收藏失败或数据格式不正确:', response.msg || response);
-                this.state.userFavorites = new Set(); // 失败时清空，避免影响后续判断
+                console.error('[ImageLoader] 加载收藏数据失败:', response.msg || response);
+                this._clearFavoritesState();
             }
         } catch (error) {
-            console.error('[ImageLoader] 加载用户收藏请求错误:', error);
-            this.state.userFavorites = new Set(); // 错误时清空
+            console.error('[ImageLoader] 收藏数据请求错误:', error);
+            this._clearFavoritesState();
+        } finally {
+            this.state.favoritesLoading = false;
         }
+    },
+    
+    /**
+     * 2025-02-01 新增：清空收藏状态
+     */
+    _clearFavoritesState() {
+        this.state.userFavorites = new Set();
+        this.state.favoritesLoaded = false;
+        this.state.favoritesLoading = false;
+        console.log('[ImageLoader] 收藏状态已清空');
+    },
+    
+    /**
+     * 2025-02-01 新增：加载完整的收藏壁纸数据
+     * 用于收藏模式，直接从数据库获取完整的收藏壁纸信息
+     */
+    async _loadUserFavoritesFullData() {
+        try {
+            // 检查用户登录状态
+            const userData = JSON.parse(localStorage.getItem('user') || '{}');
+            if (!userData.id) {
+                console.log('[ImageLoader] 用户未登录，无法获取收藏数据');
+                return [];
+            }
+            
+            console.log('[ImageLoader] 开始加载完整收藏壁纸数据...');
+            const response = await this._fetchJson('api/my_favorites.php?full_data=1', 'GET');
+            
+            if (response.code === 0 && Array.isArray(response.data)) {
+                console.log('[ImageLoader] 完整收藏数据加载成功:', {
+                    count: response.data.length,
+                    data_type: response.data_type || 'unknown'
+                });
+                
+                // 同时更新收藏ID集合（用于UI状态更新）
+                this.state.userFavorites = new Set(response.data.map(w => parseInt(w.id)));
+                this.state.favoritesLoaded = true;
+                
+                return response.data;
+            } else if (response.code === 401) {
+                console.log('[ImageLoader] 用户未登录或登录已过期');
+                return [];
+            } else {
+                console.error('[ImageLoader] 加载完整收藏数据失败:', response.msg || response);
+                return [];
+            }
+        } catch (error) {
+            console.error('[ImageLoader] 完整收藏数据请求错误:', error);
+            return [];
+        }
+    },
+    
+    /**
+     * 2025-02-01 新增：派发收藏数据更新事件
+     */
+    _dispatchFavoritesUpdateEvent() {
+        // 批量更新所有已显示卡片的收藏状态
+        this._updateAllCardsFavoriteStatus();
+        
+        const event = new CustomEvent('favoritesDataUpdated', {
+            detail: {
+                favorites: Array.from(this.state.userFavorites),
+                count: this.state.userFavorites.size
+            }
+        });
+        document.dispatchEvent(event);
+    },
+    
+    /**
+     * 2025-02-01 新增：批量更新所有已显示卡片的收藏状态
+     */
+    _updateAllCardsFavoriteStatus() {
+        const allCards = document.querySelectorAll('.wallpaper-card-item');
+        
+        allCards.forEach(card => {
+            const wallpaperId = parseInt(card.dataset.wallpaperId);
+            if (!wallpaperId) return;
+            
+            const favoriteBtn = card.querySelector('.card-favorite-btn');
+            const favoriteIcon = card.querySelector('.card-favorite-icon');
+            
+            if (!favoriteBtn || !favoriteIcon) return;
+            
+            const isFavorited = this.state.userFavorites.has(wallpaperId);
+            
+            if (isFavorited) {
+                favoriteIcon.src = 'static/icons/fa-star.svg';
+                favoriteIcon.classList.add('favorited');
+                favoriteBtn.classList.add('favorited');
+            } else {
+                favoriteIcon.src = 'static/icons/fa-star-o.svg';
+                favoriteIcon.classList.remove('favorited');
+                favoriteBtn.classList.remove('favorited');
+            }
+        });
+        
+        console.log(`[ImageLoader] 已更新 ${allCards.length} 个卡片的收藏状态`);
+    },
+    
+    /**
+     * 2025-02-01 新增：检查用户是否已登录
+     */
+    _isUserLoggedIn() {
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+        return !!userData.id;
+    },
+    
+    /**
+     * 2025-02-01 新增：获取收藏状态（用于收藏视图逻辑）
+     */
+    _getFavoritesDisplayLogic() {
+        const isLoggedIn = this._isUserLoggedIn();
+        const hasFavorites = this.state.userFavorites.size > 0;
+        
+        return {
+            isLoggedIn,
+            hasFavorites,
+            shouldShowFavorites: isLoggedIn && hasFavorites,
+            shouldShowDefault: !isLoggedIn || !hasFavorites
+        };
     },
 
     // 点赞功能已移除 - 原 _loadUserLikes 函数
@@ -2083,6 +2917,9 @@ const ImageLoader = {
         if (container) {
             container.className = 'exiled-view-grid min-h-[400px]';
         }
+
+        // 2025-01-30 修复：初始化分列结构，确保流放视图使用三列布局
+        this.initColumnStructure();
 
         // 禁用网格和列表视图按钮，高亮流放视图按钮
         const gridBtn = document.getElementById('grid-view-btn');

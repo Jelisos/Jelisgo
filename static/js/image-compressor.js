@@ -80,10 +80,11 @@ const ImageCompressor = {
                 return compressedUrl;
             }
 
-            // 如果没有压缩版本，返回原图
-            console.log(`[ImageCompressor] getCompressedImageUrl: 未找到服务器端压缩版本，返回原始路径: ${originalPath}`);
-            this.addToCache(cacheKey, originalPath);
-            return originalPath;
+            // 如果没有压缩版本，返回编码后的原图路径
+            const encodedOriginalPath = this.encodeImagePath(originalPath);
+            console.log(`[ImageCompressor] getCompressedImageUrl: 未找到服务器端压缩版本，返回编码后的原始路径: ${encodedOriginalPath}`);
+            this.addToCache(cacheKey, encodedOriginalPath);
+            return encodedOriginalPath;
 
         } catch (error) {
             console.error(`[ImageCompressor] 获取压缩图片失败: ${originalPath} (${type})`, error);
@@ -116,7 +117,8 @@ const ImageCompressor = {
         console.log(`[ImageCompressor] tryLoadCompressedVersion: 压缩图片 ${compressedPath} 存在: ${exists}`);
         
         if (exists) {
-            return compressedPath;
+            // 2025-01-30 修复：返回编码后的路径
+            return this.encodeImagePath(compressedPath);
         }
 
         console.log(`[ImageCompressor] tryLoadCompressedVersion: 服务器端压缩图片不存在。`);
@@ -206,13 +208,37 @@ const ImageCompressor = {
     async checkImageExists(imagePath) {
         console.log(`[ImageCompressor] checkImageExists: 检查路径: ${imagePath}`);
         try {
-            const response = await fetch(imagePath, { method: 'HEAD' });
+            // 2025-01-30 修复：对包含中文字符的URL进行编码
+            const encodedPath = this.encodeImagePath(imagePath);
+            console.log(`[ImageCompressor] checkImageExists: 编码后路径: ${encodedPath}`);
+            
+            const response = await fetch(encodedPath, { method: 'HEAD' });
             const exists = response.ok;
             console.log(`[ImageCompressor] checkImageExists: ${imagePath} 存在: ${exists}, 状态码: ${response.status}`);
             return exists;
         } catch (error) {
             console.error(`[ImageCompressor] checkImageExists: 检查 ${imagePath} 失败`, error);
             return false;
+        }
+    },
+
+    /**
+     * 编码图片路径，处理中文字符
+     * @param {string} imagePath - 原始图片路径
+     * @returns {string} 编码后的路径
+     */
+    encodeImagePath(imagePath) {
+        try {
+            // 分割路径和文件名
+            const pathParts = imagePath.split('/');
+            const encodedParts = pathParts.map(part => {
+                // 对每个路径部分进行URL编码，但保留斜杠
+                return encodeURIComponent(part);
+            });
+            return encodedParts.join('/');
+        } catch (error) {
+            console.warn(`[ImageCompressor] encodeImagePath: 编码失败，使用原始路径: ${imagePath}`, error);
+            return imagePath;
         }
     },
 

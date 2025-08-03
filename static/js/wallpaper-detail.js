@@ -227,13 +227,16 @@ const WallpaperDetail = {
             const { wallpaperId, action } = event.detail;
             if (this.currentWallpaper && this.currentWallpaper.id === wallpaperId) {
                 const favoriteIcon = document.getElementById('favorite-icon'); // 获取详情页的收藏图标
+                const favoriteBtn = document.getElementById('favorite-btn'); // 获取详情页的收藏按钮
                 if (favoriteIcon) {
                     if (action === 'favorited') {
                         favoriteIcon.src = 'static/icons/fa-star.svg'; // 收藏后的图标
                         favoriteIcon.classList.add('favorited');
+                        if (favoriteBtn) favoriteBtn.classList.add('favorited');
                     } else if (action === 'unfavorited') {
                         favoriteIcon.src = 'static/icons/fa-star-o.svg'; // 取消收藏后的图标
                         favoriteIcon.classList.remove('favorited');
+                        if (favoriteBtn) favoriteBtn.classList.remove('favorited');
                     }
                 }
             }
@@ -484,7 +487,29 @@ const WallpaperDetail = {
             console.warn('[WallpaperDetail] _checkUserFavoriteStatus: 无法找到收藏按钮相关元素。');
             return;
         }
+        
         console.log('[WallpaperDetail] _checkUserFavoriteStatus: 检查壁纸ID:', wallpaperId);
+        
+        // 2025-02-01 优化：优先使用ImageLoader中的缓存数据，避免重复请求
+        if (window.ImageLoader && window.ImageLoader.state.favoritesLoaded) {
+            const isFavorited = window.ImageLoader.state.userFavorites.has(parseInt(wallpaperId));
+            console.log('[WallpaperDetail] 使用ImageLoader缓存数据，收藏状态:', isFavorited);
+            
+            if (isFavorited) {
+                favoriteIcon.src = 'static/icons/fa-star.svg';
+                favoriteIcon.classList.add('favorited');
+                favoriteText.textContent = '收藏';
+                favoriteBtn.classList.add('favorited');
+            } else {
+                favoriteIcon.src = 'static/icons/fa-star-o.svg';
+                favoriteIcon.classList.remove('favorited');
+                favoriteText.textContent = '收藏';
+                favoriteBtn.classList.remove('favorited');
+            }
+            return;
+        }
+        
+        // 如果ImageLoader数据未加载，则请求API
         try {
             const response = await this._fetchJson('api/my_favorites.php', 'GET');
             console.log('[WallpaperDetail] _checkUserFavoriteStatus: my_favorites.php 响应:', response);
@@ -492,25 +517,25 @@ const WallpaperDetail = {
             if (response.code === 0 && response.data) {
                 // 2024-07-16 修复：确保favWallpaper.id与wallpaperId类型一致，都转为整数进行比较
                 const isFavorited = response.data.some(favWallpaper => {
-                    // 2024-07-16 调试：打印类型和值
-                    console.log(`[WallpaperDetail] _checkUserFavoriteStatus: 检查 -> 当前壁纸ID: ${wallpaperId} (类型: ${typeof wallpaperId}), 收藏列表项ID: ${favWallpaper.id} (类型: ${typeof favWallpaper.id})`);
                     const parsedFavId = parseInt(favWallpaper.id);
-                    console.log(`[WallpaperDetail] _checkUserFavoriteStatus: 解析后的收藏ID: ${parsedFavId} (类型: ${typeof parsedFavId})`);
-                    return parsedFavId === wallpaperId;
+                    return parsedFavId === parseInt(wallpaperId);
                 });
-                console.log('[WallpaperDetail] _checkUserFavoriteStatus: isFavorited:', isFavorited, '壁纸ID:', wallpaperId, '收藏列表:', response.data.map(f => f.id));
+                console.log('[WallpaperDetail] _checkUserFavoriteStatus: isFavorited:', isFavorited, '壁纸ID:', wallpaperId);
                 if (isFavorited) {
                     favoriteIcon.src = 'static/icons/fa-star.svg';
+                    favoriteIcon.classList.add('favorited');
                     favoriteText.textContent = '收藏';
                     favoriteBtn.classList.add('favorited');
                 } else {
                     favoriteIcon.src = 'static/icons/fa-star-o.svg';
+                    favoriteIcon.classList.remove('favorited');
                     favoriteText.textContent = '收藏';
                     favoriteBtn.classList.remove('favorited');
                 }
             } else if (response.code === 401) {
                 // User not logged in, reset to default '收藏' state
                 favoriteIcon.src = 'static/icons/fa-star-o.svg';
+                favoriteIcon.classList.remove('favorited');
                 favoriteText.textContent = '收藏';
                 favoriteBtn.classList.remove('favorited');
             } else {
@@ -551,16 +576,33 @@ const WallpaperDetail = {
             console.log('[WallpaperDetail] _handleFavoriteClick: toggle_favorite.php 响应:', response);
 
             if (response.code === 0) {
+                const wallpaperId = parseInt(this.currentWallpaper.id);
+                
                 // 根据返回的 action 更新UI
                 if (response.action === 'favorited') {
                     favoriteIcon.src = 'static/icons/fa-star.svg'; // 变为实心
+                    favoriteIcon.classList.add('favorited'); // 添加favorited类以应用绿色样式
                     favoriteText.textContent = '收藏'; // 更新文本
                     favoriteBtn.classList.add('favorited'); // 添加一个类来标记已收藏状态
+                    
+                    // 2025-02-01 新增：同步更新ImageLoader中的收藏状态
+                    if (window.ImageLoader && window.ImageLoader.state.userFavorites) {
+                        window.ImageLoader.state.userFavorites.add(wallpaperId);
+                        console.log('[WallpaperDetail] 已添加到ImageLoader收藏列表:', wallpaperId);
+                    }
                 } else if (response.action === 'unfavorited') {
                     favoriteIcon.src = 'static/icons/fa-star-o.svg'; // 变为空心
+                    favoriteIcon.classList.remove('favorited'); // 移除favorited类
                     favoriteText.textContent = '收藏'; // 更新文本
                     favoriteBtn.classList.remove('favorited'); // 移除已收藏状态类
+                    
+                    // 2025-02-01 新增：同步更新ImageLoader中的收藏状态
+                    if (window.ImageLoader && window.ImageLoader.state.userFavorites) {
+                        window.ImageLoader.state.userFavorites.delete(wallpaperId);
+                        console.log('[WallpaperDetail] 已从ImageLoader收藏列表移除:', wallpaperId);
+                    }
                 }
+                
                 // 2024-07-26 新增：收藏状态改变后，派发自定义事件通知其他模块
                 document.dispatchEvent(new CustomEvent('wallpaper-favorite-status-changed', {
                     detail: {

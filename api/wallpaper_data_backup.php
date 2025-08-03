@@ -138,11 +138,6 @@ try {
     $exile_status = $_GET['exile_status'] ?? 'all'; // 新增：流放状态筛选 (all, normal, exiled)
     $offset = ($page - 1) * $limit;
     
-    // 2025-01-31 新增：分批加载模式参数
-    $batchMode = isset($_GET['batch_mode']) && $_GET['batch_mode'] === 'true';
-    $excludeIds = isset($_GET['exclude_ids']) ? array_filter(array_map('intval', explode(',', $_GET['exclude_ids']))) : [];
-    $batchSize = $batchMode ? 16 : $limit; // 分批模式固定16张
-    
     // 记录API访问
     logApiAccess($action, [
         'page' => $page,
@@ -158,14 +153,6 @@ try {
             $whereConditions = [];
             $params = [];
             $types = '';
-            
-            // 2025-01-31 新增：排除已加载的图片（分批模式）
-            if ($batchMode && !empty($excludeIds)) {
-                $placeholders = str_repeat('?,', count($excludeIds) - 1) . '?';
-                $whereConditions[] = "w.id NOT IN ({$placeholders})";
-                $params = array_merge($params, $excludeIds);
-                $types .= str_repeat('i', count($excludeIds));
-            }
             
             // 分类筛选
             if ($category !== 'all' && !empty($category)) {
@@ -211,60 +198,40 @@ try {
             $totalCount = $countResult->fetch_assoc()['total'];
             $countStmt->close();
             
-            // 2025-01-30 性能优化：进一步简化查询，减少不必要字段
-            // 2025-01-31 优化：使用随机排序实现抽签模式，避免相邻数据
-            if ($exile_status === 'exiled') {
-                // 只有需要流放信息时才JOIN
-                $dataSql = "SELECT 
-                                w.id,
-                                w.title,
-                                w.file_path as path,
-                                w.width,
-                                w.height,
-                                w.category,
-                                w.tags,
-                                w.format,
-                                w.created_at,
-                                COALESCE(wes.status, 0) as exile_status,
-                                wes.last_operator_user_id,
-                                wes.operator_type,
-                                wes.operation_source,
-                                wes.last_operation_time,
-                                u.username as operator_username
-                            FROM wallpapers w
-                            LEFT JOIN wallpaper_exile_status wes ON w.id = wes.wallpaper_id
-                            LEFT JOIN users u ON wes.last_operator_user_id = u.id
-                            {$whereClause}
-                            ORDER BY RAND() 
-                            LIMIT ?";
-            } else {
-                // 简化查询：只获取核心字段，避免复杂JOIN
-                // 使用随机排序替代按ID排序，实现真正的随机抽取
-                $dataSql = "SELECT 
-                                w.id,
-                                w.title,
-                                w.file_path as path,
-                                w.width,
-                                w.height,
-                                w.category,
-                                w.tags,
-                                w.format,
-                                w.created_at,
-                                COALESCE(wes.status, 0) as exile_status
-                            FROM wallpapers w
-                            LEFT JOIN wallpaper_exile_status wes ON w.id = wes.wallpaper_id
-                            {$whereClause}
-                            ORDER BY RAND() 
-                            LIMIT ?";
-            }
+            // 查询数据
+            $dataSql = "SELECT 
+                            w.id,
+                            w.title,
+                            w.description,
+                            w.file_path as path,
+                            w.file_size as size,
+                            w.width,
+                            w.height,
+                            w.category,
+                            w.tags,
+                            w.format,
+                            w.views,
+                            w.likes,
+                            w.created_at,
+                            w.updated_at,
+                            COALESCE(wes.status, 0) as exile_status,
+                            wes.last_operator_user_id,
+                            wes.operator_type,
+                            wes.operation_source,
+                            wes.last_operation_time,
+                            u.username as operator_username
+                        FROM wallpapers w
+                        LEFT JOIN wallpaper_exile_status wes ON w.id = wes.wallpaper_id
+                        LEFT JOIN users u ON wes.last_operator_user_id = u.id
+                        {$whereClause}
+                        ORDER BY w.created_at DESC 
+                        LIMIT ? OFFSET ?";
             
             $dataStmt = $conn->prepare($dataSql);
             $dataParams = $params;
-            // 2025-01-31 分批模式使用不同的限制，随机排序不需要OFFSET
-            $actualLimit = $batchMode ? $batchSize : $limit;
-            $dataParams[] = $actualLimit;
-            // 移除OFFSET参数，因为随机排序不需要分页偏移
-            $dataTypes = $types . 'i';
+            $dataParams[] = $limit;
+            $dataParams[] = $offset;
+            $dataTypes = $types . 'ii';
             
             if (!empty($dataParams)) {
                 $dataStmt->bind_param($dataTypes, ...$dataParams);
@@ -272,26 +239,40 @@ try {
             $dataStmt->execute();
             $result = $dataStmt->get_result();
             
-            // 2025-01-30 性能优化：极简数据处理，只返回首页必需字段
             $wallpapers = [];
             while ($row = $result->fetch_assoc()) {
+                // 格式化数据以兼容前端
                 $wallpaper = [
-                    'id' => (int)$row['id'],
+                    'id' => $row['id'],
                     'filename' => basename($row['path']),
                     'path' => $row['path'],
+                    'name' => $row['title'],
                     'title' => $row['title'],
                     'category' => $row['category'],
-                    'tags' => $row['tags'] ? explode(',', $row['tags']) : [],
-                    'width' => (int)$row['width'],
-                    'height' => (int)$row['height'],
+                    'tags' => json_decode($row['tags'] ?? '[]', true),
+                    'width' => intval($row['width']),
+                    'height' => intval($row['height']),
+                    'size' => $row['size'],
                     'format' => $row['format'],
-                    'exile_status' => (int)$row['exile_status']
+                    'description' => $row['description'] ?? '',
+                    'views' => intval($row['views']),
+                    'likes' => intval($row['likes']),
+                    'created_at' => date('Y-m-d', strtotime($row['created_at'])),
+                    // 新增：流放状态信息
+                    'exile_status' => intval($row['exile_status']),
+                    'is_exiled' => intval($row['exile_status']) === 1,
+                    'exile_info' => null
                 ];
                 
-                // 只在查询流放状态时才添加流放信息
-                if ($exile_status === 'exiled' && isset($row['operator_username'])) {
+                // 如果壁纸被流放，添加流放信息
+                if (intval($row['exile_status']) === 1) {
                     $wallpaper['exile_info'] = [
+                        'operator_user_id' => $row['last_operator_user_id'] ? intval($row['last_operator_user_id']) : null,
                         'operator_username' => $row['operator_username'],
+                        'operator_type' => $row['operator_type'],
+                        'operator_type_text' => $row['operator_type'] === 'admin' ? '管理员' : '普通用户',
+                        'operation_source' => $row['operation_source'],
+                        'operation_source_text' => $row['operation_source'] === 'admin_panel' ? '管理后台' : '前端首页',
                         'operation_time' => $row['last_operation_time']
                     ];
                 }
@@ -305,47 +286,53 @@ try {
                 'wallpapers' => $wallpapers,
                 'pagination' => [
                     'current_page' => $page,
-                    'per_page' => $batchMode ? $batchSize : $limit,
+                    'per_page' => $limit,
                     'total' => $totalCount,
-                    'total_pages' => ceil($totalCount / ($batchMode ? $batchSize : $limit)),
-                    'has_next' => $page < ceil($totalCount / ($batchMode ? $batchSize : $limit)),
+                    'total_pages' => ceil($totalCount / $limit),
+                    'has_next' => $page < ceil($totalCount / $limit),
                     'has_prev' => $page > 1
                 ],
                 'filters' => [
                     'category' => $category,
                     'search' => $search,
                     'exile_status' => $exile_status
-                ],
-                'batch_mode' => $batchMode,
-                'loaded_count' => count($wallpapers)
+                ]
             ];
             
             sendResponse(0, '数据获取成功', $responseData);
             break;
             
         case 'categories':
-            // 修正版：优化分类查询
+            // 获取所有分类
             $sql = "SELECT DISTINCT category FROM wallpapers WHERE category IS NOT NULL AND category != '' ORDER BY category";
-            $result = $conn->query($sql);
+            $stmt = $conn->prepare($sql);
+            $stmt->execute();
+            $result = $stmt->get_result();
             
             $categories = ['all'];
             while ($row = $result->fetch_assoc()) {
-                $categories[] = $row['category'];
+                if (!empty($row['category'])) {
+                    $categories[] = $row['category'];
+                }
             }
+            $stmt->close();
             
             sendResponse(0, '分类获取成功', ['categories' => $categories]);
             break;
             
         case 'stats':
-            // 修正版：优化统计查询
+            // 获取统计信息
             $sql = "SELECT 
                         COUNT(*) as total_wallpapers,
                         COUNT(DISTINCT category) as total_categories,
                         SUM(views) as total_views,
                         SUM(likes) as total_likes
                     FROM wallpapers";
-            $result = $conn->query($sql);
+            $stmt = $conn->prepare($sql);
+            $stmt->execute();
+            $result = $stmt->get_result();
             $stats = $result->fetch_assoc();
+            $stmt->close();
             
             sendResponse(0, '统计信息获取成功', $stats);
             break;

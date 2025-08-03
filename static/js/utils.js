@@ -121,7 +121,8 @@ const Utils = {
             // 如果没有TOKEN化路径，使用原始路径
             return isPreview ? filePath.replace('static/wallpapers/', 'static/preview/') : filePath;
         } else {
-            // 线上环境：直接使用wallpapers表的file_path字段
+            // 线上环境：根据isPreview参数决定使用预览图还是原图
+            // 2025-01-30 修复：线上环境支持preview路径，首页和详情页使用预览图
             return isPreview ? filePath.replace('static/wallpapers/', 'static/preview/') : filePath;
         }
     },

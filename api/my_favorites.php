@@ -70,6 +70,9 @@ $conn = new mysqli(DB_HOST, DB_USER, DB_PWD, DB_NAME);
 if ($conn->connect_error) {
         throw new Exception("数据库连接失败: " . $conn->connect_error);
     }
+    
+    // 设置字符集为utf8mb4，确保中文字符正确处理
+    $conn->set_charset('utf8mb4');
 
     // 2024-07-27 新增：直接查询，用于验证数据库连接和基本查询功能
     tempFileLog('my_favorites.php: 开始执行直接查询验证', 'favorite_debug_log.txt', 'DIRECT_QUERY_START');
@@ -88,10 +91,23 @@ if ($conn->connect_error) {
         tempFileLog('my_favorites.php: 直接查询失败: ' . $conn->error, 'favorite_debug_log.txt', 'DIRECT_QUERY_ERROR');
     }
 
-    // 查询用户收藏的壁纸 (现在恢复为 INNER JOIN，以便调试)
-    $sql = "SELECT w.id, w.title, w.file_path, w.created_at FROM wallpapers w INNER JOIN wallpaper_favorites f ON w.id = f.wallpaper_id WHERE f.user_id = ? ORDER BY f.created_at DESC LIMIT 50";
-    // 2024-07-27 新增：调试日志，打印 SQL 语句
-    // sendDebugLog(['msg'=>'my_favorites.php: SQL 语句', 'sql'=>$sql, 'user_id'=>$user_id], 'favorite_debug_log.txt', 'append', 'sql_query');
+    // 检查是否需要返回完整壁纸数据
+    $return_full_data = isset($_GET['full_data']) && $_GET['full_data'] === '1';
+    tempFileLog('my_favorites.php: 返回模式 - full_data: ' . ($return_full_data ? 'true' : 'false'), 'favorite_debug_log.txt', 'RETURN_MODE');
+    
+    if ($return_full_data) {
+        // 返回完整壁纸数据，确保字段名与wallpaper_data.php一致
+        $sql = "SELECT w.id, w.title, w.file_path as path, w.width, w.height, 
+                       w.category, w.tags, w.format, w.created_at
+                FROM wallpapers w 
+                INNER JOIN wallpaper_favorites wf ON w.id = wf.wallpaper_id 
+                WHERE wf.user_id = ? 
+                ORDER BY wf.created_at DESC LIMIT 50";
+    } else {
+        // 只返回壁纸ID（兼容现有功能）
+        $sql = "SELECT wallpaper_id FROM wallpaper_favorites WHERE user_id = ? ORDER BY created_at DESC LIMIT 50";
+    }
+    
     tempFileLog('my_favorites.php: 预处理语句 SQL: ' . $sql . ', user_id: ' . $user_id, 'favorite_debug_log.txt', 'PREPARED_SQL_QUERY');
 
     $stmt = $conn->prepare($sql);
@@ -118,26 +134,29 @@ $stmt->bind_param('i', $user_id);
 
 $result = $stmt->get_result();
 
-    // 2024-07-27 新增：调试日志，打印查询结果的行数
-    // error_log('my_favorites.php: 查询结果行数 - [RAW]: ' . $result->num_rows); // 2024-07-27 紧急调试：直接写入错误日志
     tempFileLog('my_favorites.php: 查询结果行数: ' . $result->num_rows, 'favorite_debug_log.txt', 'QUERY_RESULT_CHECK');
 
 $list = [];
 while ($row = $result->fetch_assoc()) {
-    $list[] = $row;
+    if ($return_full_data) {
+        // 返回完整壁纸数据
+        $list[] = $row;
+    } else {
+        // 只返回壁纸ID
+        $list[] = intval($row['wallpaper_id']);
+    }
 }
 $stmt->close();
 $conn->close();
 
-    // error_log('my_favorites.php: 返回的列表数据 - [RAW]: ' . json_encode($list, JSON_UNESCAPED_UNICODE)); // 2024-07-27 紧急调试：直接写入错误日志
-    // 2024-07-27 新增：调试日志，打印最终返回的列表数据
-    // sendDebugLog(['msg'=>'my_favorites.php: 最终返回的收藏列表', 'data'=>$list], 'favorite_debug_log.txt', 'append', 'final_data');
-    tempFileLog('my_favorites.php: 最终返回的收藏列表: ' . json_encode($list, JSON_UNESCAPED_UNICODE), 'favorite_debug_log.txt', 'FINAL_DATA');
+    tempFileLog('my_favorites.php: 最终返回的收藏数据: ' . json_encode($list, JSON_UNESCAPED_UNICODE), 'favorite_debug_log.txt', 'FINAL_DATA');
+    tempFileLog('my_favorites.php: 返回数据类型: ' . ($return_full_data ? '完整壁纸数据' : '壁纸ID列表'), 'favorite_debug_log.txt', 'DATA_TYPE');
 
 echo json_encode([
     'code' => 0,
     'msg' => 'success',
-    'data' => $list
+    'data' => $list,
+    'data_type' => $return_full_data ? 'full_wallpapers' : 'wallpaper_ids'
 ], JSON_UNESCAPED_UNICODE); 
 } catch (Exception $e) {
     echo json_encode([
