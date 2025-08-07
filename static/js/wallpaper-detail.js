@@ -159,47 +159,17 @@ const WallpaperDetail = {
             console.warn('[WallpaperDetail] 无法找到下载按钮元素 (ID: download-btn) 在 bindEvents 中。');
         }
         
-        // 2024-07-25 修复：预览按钮链接到yulan.php并传递原图路径和壁纸ID
+        // 2024-07-25 修复：预览按钮链接到yulan.php并传递壁纸ID，让yulan.php直接从数据库获取原图路径
         const previewBtn = document.getElementById('preview-btn');
         if (previewBtn) {
             previewBtn.addEventListener('click', async () => {
-                if (this.currentWallpaper && this.currentWallpaper.path && this.currentWallpaper.id) {
-                    // 确保使用原图路径而不是预览图路径
-                    let originalImagePath = this.currentWallpaper.path;
-                    
-                    // 如果当前路径是预览图路径，转换为原图路径
-                    if (originalImagePath.includes('static/preview/')) {
-                        originalImagePath = originalImagePath.replace('static/preview/', 'static/wallpapers/');
-                        console.log('[WallpaperDetail] 转换预览图路径为原图路径:', originalImagePath);
-                    }
-                    
-                    // 环境检测：本地使用TOKEN化，线上直接使用file_path
-                    if (Utils.isLocalhost()) {
-                        // 本地环境：使用TOKEN化URL
-                        try {
-                            const tokenManager = window.ImageTokenManager || new ImageTokenManager();
-                            const tokenizedUrl = await tokenManager.buildTokenizedUrl(
-                                this.currentWallpaper.id, 
-                                'original', 
-                                { imagePath: originalImagePath }
-                            );
-                            
-                            console.log('[WallpaperDetail] 本地环境Token化URL:', tokenizedUrl);
-                            const yulanUrl = `yulan.php?image=${encodeURIComponent(tokenizedUrl)}&id=${this.currentWallpaper.id}`;
-                            window.open(yulanUrl, '_blank');
-                        } catch (error) {
-                            console.error('[WallpaperDetail] 本地环境Token化失败，使用原始路径:', error);
-                            const yulanUrl = `yulan.php?image=${encodeURIComponent(originalImagePath)}&id=${this.currentWallpaper.id}`;
-                            window.open(yulanUrl, '_blank');
-                        }
-                    } else {
-                        // 线上环境：直接使用wallpapers表的file_path
-                        console.log('[WallpaperDetail] 线上环境直接使用原图路径:', originalImagePath);
-                        const yulanUrl = `yulan.php?image=${encodeURIComponent(originalImagePath)}&id=${this.currentWallpaper.id}`;
-                        window.open(yulanUrl, '_blank');
-                    }
+                if (this.currentWallpaper && this.currentWallpaper.id) {
+                    // 直接传递壁纸ID，让yulan.php从数据库获取原图路径
+                    console.log('[WallpaperDetail] 传递壁纸ID到预览页:', this.currentWallpaper.id);
+                    const yulanUrl = `yulan.php?id=${this.currentWallpaper.id}`;
+                    window.open(yulanUrl, '_blank');
                 } else {
-                    console.warn('[WallpaperDetail] 没有当前壁纸信息或路径，无法预览。');
+                    console.warn('[WallpaperDetail] 没有当前壁纸信息或ID，无法预览。');
                 }
             });
         } else {
@@ -246,6 +216,18 @@ const WallpaperDetail = {
         const copyPromptBtn = document.getElementById('copy-prompt-btn');
         if (copyPromptBtn) {
             copyPromptBtn.addEventListener('click', () => this.copyPromptContent());
+        }
+
+        // 分享按钮事件
+        const shareBtn = document.getElementById('share-btn');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', () => this.showShareModal());
+        }
+        
+        // 详情页按钮事件
+        const detailPageBtn = document.getElementById('detail-page-btn');
+        if (detailPageBtn) {
+            detailPageBtn.addEventListener('click', () => this.openDetailPage());
         }
     },
     
@@ -629,7 +611,254 @@ const WallpaperDetail = {
     },
     
     /**
-     * 分享壁纸
+     * 显示分享选择模态框
+     */
+    showShareModal() {
+        if (!this.currentWallpaper) return;
+        
+        // 创建分享模态框HTML
+        const shareModalHTML = `
+            <div id="share-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div class="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold">分享壁纸</h3>
+                        <button id="close-share-modal" class="text-gray-500 hover:text-gray-700">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-3 gap-4 mb-4">
+                        <button id="share-wechat" class="flex flex-col items-center p-3 rounded-lg hover:bg-gray-100 transition-colors">
+                            <div class="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center mb-2">
+                                <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M8.5 12c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5 1.5.7 1.5 1.5-.7 1.5-1.5 1.5zm7 0c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5 1.5.7 1.5 1.5-.7 1.5-1.5 1.5zm-3.5-9C6.5 3 2 6.6 2 11.1c0 2.4 1.2 4.5 3.2 5.9-.2-.6-.3-1.3-.3-2 0-4.4 4-8 9-8 .3 0 .6 0 .9.1C13.8 4.8 11.2 3 8 3zm7.5 6c-3.9 0-7 2.7-7 6s3.1 6 7 6c.8 0 1.6-.1 2.3-.3l2.2 1.3-.6-2.2c1.3-1 2.1-2.4 2.1-4.1 0-3.3-3.1-6.7-6-6.7z"/>
+                                </svg>
+                            </div>
+                            <span class="text-sm">微信</span>
+                        </button>
+                        <button id="share-qq" class="flex flex-col items-center p-3 rounded-lg hover:bg-gray-100 transition-colors">
+                            <div class="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center mb-2">
+                                <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm3.5 14.5c-.8.8-2.1 1.3-3.5 1.3s-2.7-.5-3.5-1.3c-.2-.2-.2-.5 0-.7s.5-.2.7 0c.6.6 1.4 1 2.8 1s2.2-.4 2.8-1c.2-.2.5-.2.7 0s.2.5 0 .7zM9 11c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm6 0c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1z"/>
+                                </svg>
+                            </div>
+                            <span class="text-sm">QQ</span>
+                        </button>
+                        <button id="share-doubao" class="flex flex-col items-center p-3 rounded-lg hover:bg-gray-100 transition-colors">
+                            <div class="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center mb-2">
+                                <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                </svg>
+                            </div>
+                            <span class="text-sm">豆包</span>
+                        </button>
+                    </div>
+                    <div class="border-t pt-4">
+                        <button id="share-copy-link" class="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                            </svg>
+                            复制链接
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // 添加到页面
+        document.body.insertAdjacentHTML('beforeend', shareModalHTML);
+        
+        // 绑定事件
+        this.bindShareModalEvents();
+    },
+
+    /**
+     * 绑定分享模态框事件
+     */
+    bindShareModalEvents() {
+        const shareModal = document.getElementById('share-modal');
+        const closeBtn = document.getElementById('close-share-modal');
+        const wechatBtn = document.getElementById('share-wechat');
+        const qqBtn = document.getElementById('share-qq');
+        const doubaoBtn = document.getElementById('share-doubao');
+        const copyLinkBtn = document.getElementById('share-copy-link');
+        
+        // 关闭模态框
+        const closeModal = () => {
+            if (shareModal) {
+                shareModal.remove();
+            }
+        };
+        
+        if (closeBtn) {
+            closeBtn.addEventListener('click', closeModal);
+        }
+        
+        // 点击背景关闭
+        if (shareModal) {
+            shareModal.addEventListener('click', (e) => {
+                if (e.target === shareModal) {
+                    closeModal();
+                }
+            });
+        }
+        
+        // 微信分享
+        if (wechatBtn) {
+            wechatBtn.addEventListener('click', () => {
+                this.shareToWechat();
+                closeModal();
+            });
+        }
+        
+        // QQ分享
+        if (qqBtn) {
+            qqBtn.addEventListener('click', () => {
+                this.shareToQQ();
+                closeModal();
+            });
+        }
+        
+        // 豆包分享
+        if (doubaoBtn) {
+            doubaoBtn.addEventListener('click', () => {
+                this.shareToDoubao();
+                closeModal();
+            });
+        }
+        
+        // 复制链接
+        if (copyLinkBtn) {
+            copyLinkBtn.addEventListener('click', () => {
+                this.copyShareLink();
+                closeModal();
+            });
+        }
+    },
+
+    /**
+     * 分享到微信
+     */
+    shareToWechat() {
+        if (!this.currentWallpaper) return;
+        
+        const shareUrl = window.location.href;
+        const title = this.currentWallpaper.name;
+        const desc = `分享一张精美壁纸：${title}`;
+        
+        // 检测是否在微信环境
+        if (navigator.userAgent.toLowerCase().includes('micromessenger')) {
+            // 在微信内，提示用户使用右上角分享
+            alert('请点击右上角"..."按钮分享到朋友圈或发送给朋友');
+        } else {
+            // 不在微信内，生成二维码或复制链接
+            this.showQRCode(shareUrl, '微信扫码分享');
+        }
+    },
+
+    /**
+     * 分享到QQ
+     */
+    shareToQQ() {
+        if (!this.currentWallpaper) return;
+        
+        const shareUrl = encodeURIComponent(window.location.href);
+        const title = encodeURIComponent(this.currentWallpaper.name);
+        const desc = encodeURIComponent(`分享一张精美壁纸：${this.currentWallpaper.name}`);
+        
+        // QQ分享链接
+        const qqShareUrl = `https://connect.qq.com/widget/shareqq/index.html?url=${shareUrl}&title=${title}&desc=${desc}&summary=${desc}&site=壁纸网站`;
+        
+        // 打开QQ分享窗口
+        window.open(qqShareUrl, '_blank', 'width=600,height=400');
+    },
+
+    /**
+     * 分享到豆包
+     */
+    shareToDoubao() {
+        if (!this.currentWallpaper) return;
+        
+        const shareText = `发现了一张很棒的壁纸：${this.currentWallpaper.name}\n${window.location.href}`;
+        
+        // 复制分享文本到剪贴板
+        navigator.clipboard.writeText(shareText).then(() => {
+            alert('分享内容已复制到剪贴板，请打开豆包APP粘贴分享');
+        }).catch(() => {
+            // 降级方案：显示分享文本
+            prompt('请复制以下内容到豆包APP分享：', shareText);
+        });
+    },
+
+    /**
+     * 复制分享链接
+     */
+    copyShareLink() {
+        const shareUrl = window.location.href;
+        
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            alert('链接已复制到剪贴板');
+        }).catch(() => {
+            // 降级方案
+            prompt('请复制以下链接：', shareUrl);
+        });
+    },
+
+    /**
+     * 显示二维码
+     */
+    showQRCode(url, title = '扫码分享') {
+        // 检查是否有二维码库
+        if (typeof QRious !== 'undefined') {
+            const qrModalHTML = `
+                <div id="qr-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-white rounded-lg p-6 max-w-sm w-full mx-4 text-center">
+                        <h3 class="text-lg font-semibold mb-4">${title}</h3>
+                        <canvas id="qr-canvas" class="mx-auto mb-4"></canvas>
+                        <button id="close-qr-modal" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">关闭</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', qrModalHTML);
+            
+            // 生成二维码
+            const qr = new QRious({
+                element: document.getElementById('qr-canvas'),
+                value: url,
+                size: 200
+            });
+            
+            // 绑定关闭事件
+            const qrModal = document.getElementById('qr-modal');
+            const closeQrBtn = document.getElementById('close-qr-modal');
+            
+            const closeQrModal = () => {
+                if (qrModal) {
+                    qrModal.remove();
+                }
+            };
+            
+            if (closeQrBtn) {
+                closeQrBtn.addEventListener('click', closeQrModal);
+            }
+            
+            if (qrModal) {
+                qrModal.addEventListener('click', (e) => {
+                    if (e.target === qrModal) {
+                        closeQrModal();
+                    }
+                });
+            }
+        } else {
+            // 没有二维码库，直接复制链接
+            this.copyShareLink();
+        }
+    },
+
+    /**
+     * 分享壁纸（保留原有方法作为备用）
      */
     shareWallpaper() {
         if (!this.currentWallpaper) return;
@@ -644,12 +873,8 @@ const WallpaperDetail = {
             // 使用原生分享API
             navigator.share(shareData).catch(error => {});
         } else {
-            // 复制链接到剪贴板
-            navigator.clipboard.writeText(window.location.href).then(() => {
-                alert('链接已复制到剪贴板');
-            }).catch(() => {
-                alert('分享功能暂不可用');
-            });
+            // 显示分享选择模态框
+            this.showShareModal();
         }
     },
     
@@ -661,6 +886,21 @@ const WallpaperDetail = {
         
         // 这是一个浏览器限制的功能，大多数现代浏览器不支持
         alert('请右键点击图片选择"设为壁纸"或手动下载后设置');
+    },
+    
+    /**
+     * 打开独立详情页面
+     */
+    openDetailPage() {
+        if (!this.currentWallpaper || !this.currentWallpaper.id) {
+            console.warn('[WallpaperDetail] 没有当前壁纸信息，无法打开详情页');
+            return;
+        }
+        
+        // 使用传统的URL格式
+        const detailUrl = `wallpaper_detail.php?id=${this.currentWallpaper.id}`;
+        window.open(detailUrl, '_blank');
+        console.log('[WallpaperDetail] 打开详情页:', detailUrl);
     },
     
     /**
@@ -933,27 +1173,33 @@ const WallpaperDetail = {
      * @param {string} wallpaperId - 壁纸ID
      */
     async loadWallpaperPrompt(wallpaperId) {
+        // 检查用户权限
+        if (!window.PermissionManager || !window.PermissionManager.hasAdvancedFeatureAccess()) {
+            this.updatePromptUI({ content: '', is_locked: 1, hasPermission: false });
+            return;
+        }
+        
         try {
             const response = await this._fetchJson(`api/wallpaper_prompt.php?id=${wallpaperId}`, 'GET');
             if (response.code === 200 && response.data) {
-                this.updatePromptUI(response.data);
+                this.updatePromptUI({ ...response.data, hasPermission: true });
             } else if (response.code === 200 && response.msg === '暂无提示词') {
                 // 暂无提示词，显示空内容并禁用编辑
-                this.updatePromptUI({ content: '', is_locked: 1 });
+                this.updatePromptUI({ content: '', is_locked: 1, hasPermission: true });
             } else {
                 console.error('[WallpaperDetail] 获取提示词失败:', response.msg);
                 // 即使失败也显示空内容
-                this.updatePromptUI({ content: '', is_locked: 1 });
+                this.updatePromptUI({ content: '', is_locked: 1, hasPermission: true });
             }
         } catch (error) {
             console.error('[WallpaperDetail] 加载提示词时发生错误:', error);
-            this.updatePromptUI({ content: '', is_locked: 1 });
+            this.updatePromptUI({ content: '', is_locked: 1, hasPermission: true });
         }
     },
 
     /**
      * 更新提示词UI
-     * @param {Object} promptData - 提示词数据 {content: string, is_locked: number}
+     * @param {Object} promptData - 提示词数据 {content: string, is_locked: number, hasPermission: boolean}
      */
     updatePromptUI(promptData) {
         const promptTextElement = document.getElementById('prompt-content'); // 修正：对应 HTML 中的 prompt-content
@@ -964,10 +1210,29 @@ const WallpaperDetail = {
         const promptLockIcon = document.getElementById('prompt-lock-icon');
         const promptLockText = document.getElementById('prompt-lock-text');
         const promptEditDiv = document.getElementById('prompt-edit');
+        const promptPermissionDenied = document.getElementById('prompt-permission-denied');
 
         if (!promptTextElement || !promptViewDiv || !promptEditBtnArea || !editPromptBtn || !toggleLockBtn || !promptLockIcon || !promptLockText || !promptEditDiv) {
             console.warn('[WallpaperDetail] 提示词相关DOM元素未找到。');
             return;
+        }
+
+        // 检查权限
+        if (promptData.hasPermission === false) {
+            // 权限不足，显示权限不足提示
+            promptViewDiv.classList.add('hidden');
+            promptEditBtnArea.classList.add('hidden');
+            toggleLockBtn.classList.add('hidden');
+            if (promptPermissionDenied) {
+                promptPermissionDenied.classList.remove('hidden');
+            }
+            return;
+        }
+
+        // 有权限，显示正常内容
+        promptViewDiv.classList.remove('hidden');
+        if (promptPermissionDenied) {
+            promptPermissionDenied.classList.add('hidden');
         }
 
         promptTextElement.innerText = promptData.content || '暂无提示词信息';
@@ -990,7 +1255,6 @@ const WallpaperDetail = {
         }
 
         // 确保编辑模式是隐藏的，显示查看模式
-        promptViewDiv.classList.remove('hidden');
         promptEditDiv.classList.add('hidden');
 
         // 绑定事件监听器 (确保只绑定一次)

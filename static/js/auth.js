@@ -312,7 +312,7 @@ async function handleRegister() {
                 action: 'register',
                 email,
                 password,
-                human_verification: true
+                human_verification: humanVerification
             })
         });
 
@@ -565,8 +565,8 @@ document.addEventListener('DOMContentLoaded', () => {
         openRegisterModal();
     });
 
-    // 注册相关事件
-    document.getElementById('register-submit')?.addEventListener('click', handleRegister);
+    // 注册相关事件 - 注册处理已移至modals.js中统一管理
+    // document.getElementById('register-submit')?.addEventListener('click', handleRegister);
     document.getElementById('close-register-modal')?.addEventListener('click', closeRegisterModal);
     document.getElementById('switch-to-login')?.addEventListener('click', () => {
         closeRegisterModal();

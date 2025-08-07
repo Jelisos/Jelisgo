@@ -61,7 +61,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     
-    // 如果Authorization头中没有用户ID，回退到session
+    // 如果Authorization头中没有用户ID，尝试从POST数据中获取
+    if (!$user_id) {
+        $data_temp = json_decode(file_get_contents('php://input'), true);
+        if (isset($data_temp['user_id']) && is_numeric($data_temp['user_id'])) {
+            $user_id = (int)$data_temp['user_id'];
+        }
+    }
+    
+    // 最后回退到getCurrentUserId()
     if (!$user_id) {
         $user_id = getCurrentUserId();
     }
@@ -79,11 +87,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         sendResponse(400, '缺少壁纸ID');
     }
 
-    // 检查用户是否是管理员或者壁纸的上传者
-    $can_edit = isAdmin(); // 首先检查是否为管理员
-
-    if (!$can_edit) {
-        // 如果不是管理员，则检查是否是壁纸上传者
+    // 权限检查：管理员可以编辑所有壁纸，非管理员只能编辑自己上传的壁纸
+    $can_edit = false;
+    
+    if (isAdminWithUserId($user_id)) {
+        // 管理员可以编辑所有壁纸
+        $can_edit = true;
+    } else {
+        // 非管理员需要检查是否是壁纸上传者
         $stmt_owner = $conn->prepare("SELECT user_id FROM wallpapers WHERE id = ? LIMIT 1");
         if (!$stmt_owner) {
             sendResponse(500, 'SQL预处理失败 (检查上传者): ' . $conn->error);
@@ -93,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $result_owner = $stmt_owner->get_result();
         $wallpaper_owner = $result_owner->fetch_assoc();
         $stmt_owner->close();
-
+        
         if ($wallpaper_owner && $wallpaper_owner['user_id'] == $user_id) {
             $can_edit = true;
         }

@@ -99,10 +99,19 @@ class SiteConfig {
      * 更新导航栏品牌名称
      */
     updateBrandName() {
-        // 主导航栏品牌名称 - 优先使用ID选择器
+        // 主导航栏品牌名称 - 保持HTML结构，只更新主要部分
         const navBrand = document.getElementById('nav-brand-name');
         if (navBrand && this.config.site_name) {
-            navBrand.textContent = this.config.site_name;
+            // 查找第一个span（brand-primary类）
+            const primarySpan = navBrand.querySelector('.brand-primary');
+            if (primarySpan) {
+                // 从完整站点名称中提取主要部分（去掉" ° 不吃鱼"）
+                const mainName = this.config.site_name.replace(/\s*°\s*不吃鱼$/, '');
+                primarySpan.textContent = mainName;
+            } else {
+                // 兼容旧版本：如果没有brand-primary类，则更新整个内容
+                navBrand.textContent = this.config.site_name;
+            }
         }
         
         // 兼容性处理：如果没有ID，则使用类选择器

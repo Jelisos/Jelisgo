@@ -279,6 +279,8 @@ const ModalManager = {
             const email = emailInput.value.trim();
             const password = passwordInput.value;
             const confirm = confirmInput.value;
+            const humanVerification = document.getElementById('human-verification').checked;
+            
             // 校验
             if (!email) {
                 showError('请输入邮箱');
@@ -304,6 +306,11 @@ const ModalManager = {
                 showError('两次输入的密码不一致');
                 return;
             }
+            if (!humanVerification) {
+                showError('请确认您是真人');
+                return;
+            }
+            
             // 按钮防抖
             submitBtn.disabled = true;
             submitBtn.textContent = '注册中...';
@@ -317,7 +324,8 @@ const ModalManager = {
                     body: JSON.stringify({
                         action: 'register',
                         email: email,
-                        password: password
+                        password: password,
+                        human_verification: humanVerification
                     })
                 });
                 const data = await res.json();

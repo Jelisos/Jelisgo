@@ -5,7 +5,8 @@
  */
 
 // 检测是否为线上环境
-function isOnlineEnvironment() {
+if (!function_exists('isOnlineEnvironment')) {
+    function isOnlineEnvironment() {
     // 检查域名（最可靠的方式）
     $serverName = $_SERVER["SERVER_NAME"] ?? "";
     if (strpos($serverName, "jelisgo.cn") !== false) {
@@ -33,6 +34,7 @@ function isOnlineEnvironment() {
     }
     
     return false;
+    }
 }
 
 // 根据环境设置数据库配置

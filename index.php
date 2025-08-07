@@ -112,6 +112,8 @@ $currentUrl = 'https://Jelisgo.cn' . $_SERVER['REQUEST_URI'];
     <link href="static/css/main.css" rel="stylesheet">
     <!-- 引入SVG图标样式表 -->
     <link rel="stylesheet" href="static/css/svg-icons.css">
+    <!-- 引入自定义链接管理样式 -->
+    <link rel="stylesheet" href="static/css/custom-links.css">
     <!-- 引入Inter字体 -->
     <link rel="stylesheet" href="static/fonts/inter.css">
     <!-- 2024-07-25 修复: 移除不生效的Tailwind CSS自定义样式块，其内容将移至main.css -->
@@ -124,7 +126,10 @@ $currentUrl = 'https://Jelisgo.cn' . $_SERVER['REQUEST_URI'];
                 <div class="flex items-center">
                     <a href="#" class="flex items-center space-x-2">
                         <img src="Jelisgo.ico" alt="图片" class="w-6 h-6 text-primary" />
-                        <span id="nav-brand-name" class="text-xl font-bold text-primary"><?php echo htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8'); ?></span>
+                        <span id="nav-brand-name" class="text-xl font-bold">
+                            <span class="brand-primary">壁纸喵</span>
+                            <span class="brand-secondary">° 不吃鱼</span>
+                        </span>
                     </a>
                 </div>
                 
@@ -144,15 +149,6 @@ $currentUrl = 'https://Jelisgo.cn' . $_SERVER['REQUEST_URI'];
                             <path d="M468.8 553.6H201.6v267.2h267.2V553.6z m-32 235.2H233.6V585.6h203.2v203.2zM504 203.2h16v616h-16zM561.6 510.4h16v308.8h-16zM201.6 505.6h265.6v16H201.6zM681.6 819.2h142.4v-142.4h-142.4v142.4z m32-108.8h78.4v78.4h-78.4v-78.4zM619.2 510.4h16v308.8h-16zM681.6 510.4h16v120h-16zM742.4 510.4h16v120h-16zM806.4 510.4h16v120h-16z"/>
                         </svg>
                     </button>
-                </div>
-                
-                <!-- 移动端搜索框 -->
-                <div class="md:hidden pb-3">
-                    <div class="relative w-full">
-                        <input type="text" id="mobile-search-input" placeholder="搜索壁纸..." 
-                            class="w-full pl-10 pr-4 py-2 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary">
-                        <img src="static/icons/fa-search.svg" alt="搜索" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    </div>
                 </div>
                 
                 <div class="flex items-center space-x-4">
@@ -180,12 +176,23 @@ $currentUrl = 'https://Jelisgo.cn' . $_SERVER['REQUEST_URI'];
                         </div>
                     </div>
                     
-                    <!-- 移动端菜单按钮 -->
-                    <button id="mobile-menu-btn" class="md:hidden focus:outline-none">
-                        <img src="static/icons/fa-bars.svg" alt="菜单" class="w-6 h-6 text-xl" />
-                    </button>
+                    <!-- 移动端搜索按钮 -->
+                    <div class="md:hidden flex items-center">
+                        <button id="mobile-search-toggle" class="p-2 rounded-full hover:bg-gray-100 transition-colors">
+                            <img src="static/icons/fa-search.svg" alt="搜索" class="w-5 h-5 text-gray-600" />
+                        </button>
+                    </div>
                 </div>
             </nav>
+            
+            <!-- 移动端搜索框 -->
+            <div id="mobile-search-container" class="hidden md:hidden pb-3">
+                <div class="relative w-full">
+                    <input type="text" id="mobile-search-input" placeholder="搜索壁纸..." 
+                        class="w-full pl-10 pr-4 py-2 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                    <img src="static/icons/fa-search.svg" alt="搜索" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                </div>
+            </div>
             
             <!-- 移动端菜单 -->
             <div id="mobile-menu" class="hidden md:hidden pb-4">
@@ -414,6 +421,8 @@ $currentUrl = 'https://Jelisgo.cn' . $_SERVER['REQUEST_URI'];
     <!-- 壁纸详情模态框 -->
     <div id="wallpaper-detail-modal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center">
       <div id="wallpaper-detail-modal-content">
+        <!-- 独立关闭按钮 -->
+        <button id="close-detail-modal">&times;</button>
         <div class="modal-grid">
           <!-- 图片区域 -->
           <div class="modal-image-container bg-black rounded-lg overflow-hidden relative shadow-2xl border border-gray-200">
@@ -428,10 +437,6 @@ $currentUrl = 'https://Jelisgo.cn' . $_SERVER['REQUEST_URI'];
           
           <!-- 详情区域 -->
           <div class="modal-details-container">
-            <!-- 关闭按钮 -->
-            <div class="flex justify-end mb-4">
-              <button id="close-detail-modal" class="text-gray-500 hover:text-gray-700 text-2xl font-bold">&times;</button>
-            </div>
             
             <!-- 标题 -->
             <h2 id="detail-title" class="text-2xl font-bold text-gray-800 mb-4">壁纸标题</h2>
@@ -442,14 +447,15 @@ $currentUrl = 'https://Jelisgo.cn' . $_SERVER['REQUEST_URI'];
                 <span>原图大小:</span> <span id="detail-file-size"></span>
               </div>
               <div class="col-span-1">
-                <span>原图分辨率:</span> <span id="detail-dimensions"></span>
+                <span>格式:</span> <span id="detail-format"></span>
+                
               </div>
             </div>
             
             <!-- 格式和上传时间 (2024-07-29 修复: 重新添加并调整结构) -->
             <div class="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-4">
               <div class="col-span-1">
-                <span>格式:</span> <span id="detail-format"></span>
+                <span>原图分辨率:</span> <span id="detail-dimensions"></span>
               </div>
               <div class="col-span-1">
                 <span>上传时间:</span> <span id="detail-upload-time"></span>
@@ -498,6 +504,11 @@ $currentUrl = 'https://Jelisgo.cn' . $_SERVER['REQUEST_URI'];
                 <img src="static/icons/fa-share-alt.svg" alt="分享" class="w-4 h-4">
                 分享
               </button>
+              <!-- 详情页按钮--
+              <button id="detail-page-btn" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2" title="查看独立详情页面">
+                <img src="static/icons/fa-external-link.svg" alt="详情页" class="w-4 h-4">
+                详情页
+              </button> -->
             </div>
             
             <!-- AI生图提示词 -->
@@ -527,6 +538,13 @@ $currentUrl = 'https://Jelisgo.cn' . $_SERVER['REQUEST_URI'];
                   </div>
                 </div>
                 
+                <!-- 权限不足提示 -->
+                <div id="prompt-permission-denied" class="hidden p-4 bg-gray-100 rounded-lg text-center text-gray-600" style="background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 8px; padding: 2rem; text-align: center; color: #6c757d; font-size: 0.95rem; margin: 1rem 0;">
+                  <div class="icon" style="font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.6;">🔒</div>
+                  <div class="message" style="margin-bottom: 0.5rem; font-weight: 500;">暂无内容</div>
+                  <div class="hint" style="font-size: 0.85rem; opacity: 0.8;"></div>
+                </div>
+                
                 <!-- 查看模式 -->
                 <div id="prompt-view">
                   <div id="prompt-content" class="prompt-content">
@@ -552,8 +570,70 @@ $currentUrl = 'https://Jelisgo.cn' . $_SERVER['REQUEST_URI'];
                   </div>
                 </div>
               </div>
+              
+              <!-- 自定义链接管理模块 -->
+              <div id="custom-links-section" class="custom-links-section hidden">
+                <div class="custom-links-header">
+                  <h3 class="custom-links-title">智能体（Jelisgo）</h3>
+                  <button id="add-custom-link-btn" class="custom-links-add-btn hidden" title="添加自定义链接">
+                    <i class="fa fa-plus"></i>
+                    添加链接
+                  </button>
+                </div>
+                
+                <!-- 权限不足提示 -->
+                <div id="links-permission-denied" class="hidden p-4 bg-gray-100 rounded-lg text-center text-gray-600" style="background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 8px; padding: 2rem; text-align: center; color: #6c757d; font-size: 0.95rem; margin: 1rem 0;">
+                  <div class="icon" style="font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.6;">🔒</div>
+                  <div class="message" style="margin-bottom: 0.5rem; font-weight: 500;">暂无内容</div>
+                  <div class="hint" style="font-size: 0.85rem; opacity: 0.8;"></div>
+                </div>
+                
+                <div id="custom-links-list" class="custom-links-list">
+                  <div class="custom-links-empty">暂无自定义链接</div>
+                </div>
+              </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- 自定义链接模态框 -->
+    <div id="custom-link-modal" class="custom-link-modal hidden">
+      <div class="custom-link-modal-content">
+        <div class="custom-link-modal-header">
+          <h3 id="custom-link-modal-title">添加自定义链接</h3>
+          <button id="close-custom-link-modal" class="custom-link-modal-close">
+            <i class="fa fa-times"></i>
+          </button>
+        </div>
+        <form id="custom-link-form" class="custom-link-form">
+          <div class="custom-link-form-group">
+            <label for="link-title">链接标题 *</label>
+            <input type="text" id="link-title" name="title" required maxlength="100" placeholder="请输入链接标题">
+          </div>
+          <div class="custom-link-form-group">
+            <label for="link-url">链接地址 *</label>
+            <input type="url" id="link-url" name="url" required placeholder="https://example.com">
+          </div>
+          <div class="custom-link-form-group">
+            <label for="link-priority">重要程度 *</label>
+            <select id="link-priority" name="priority" required>
+              <option value="1">低 (灰色)</option>
+              <option value="2">中 (蓝色)</option>
+              <option value="3" selected>高 (绿色)</option>
+              <option value="4">紧急 (橙色)</option>
+              <option value="5">关键 (红色)</option>
+            </select>
+          </div>
+          <div class="custom-link-form-group">
+            <label for="link-description">描述信息</label>
+            <textarea id="link-description" name="description" maxlength="255" placeholder="可选：添加链接描述信息"></textarea>
+          </div>
+          <div class="custom-link-form-actions">
+            <button type="button" id="cancel-custom-link" class="custom-link-btn-secondary">取消</button>
+            <button type="submit" id="save-custom-link" class="custom-link-btn-primary">保存</button>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -624,11 +704,14 @@ $currentUrl = 'https://Jelisgo.cn' . $_SERVER['REQUEST_URI'];
     <script src="static/js/user-menu.js"></script>
     <script src="static/js/auth.js"></script>
     <script src="static/js/membership-status.js?v=20250627"></script> <!-- 2025-06-27 新增：会员状态管理模块 -->
+    <script src="static/js/permission-manager.js"></script> <!-- 2025-01-27 新增：权限管理器 -->
     <script src="static/js/image-compressor.js"></script>
     <script src="static/js/intelligent-preloader.js"></script>
     <script src="static/js/image-token-manager.js"></script>
     <script src="static/js/image-loader.js"></script>
     <script src="static/js/wallpaper-detail.js"></script>
+    <!-- 引入自定义链接管理模块 -->
+    <script src="static/js/custom-links.js"></script>
     <script src="static/js/password-reset.js"></script>
     <script src="static/js/back-to-top.js"></script>
     <script src="static/js/main.js"></script>
@@ -650,6 +733,11 @@ $currentUrl = 'https://Jelisgo.cn' . $_SERVER['REQUEST_URI'];
             // 初始化壁纸详情模块
             if (typeof WallpaperDetail !== 'undefined') {
                 WallpaperDetail.init();
+            }
+            
+            // 初始化自定义链接管理模块
+            if (typeof CustomLinksManager !== 'undefined') {
+                CustomLinksManager.init();
             }
         });
     </script>

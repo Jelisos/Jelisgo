@@ -503,6 +503,12 @@ const ImageLoader = {
             const { wallpaperId, action } = event.detail;
             this._updateCardFavoriteStatus(wallpaperId, action);
         });
+
+        // 窗口大小变化事件监听器，确保响应式布局正确工作
+        window.addEventListener('resize', this.debounce(() => {
+            this.updateColumnCount();
+            this.renderWallpapers(false); // 重新渲染以应用新的列数
+        }, 300));
     },
 
     /**
@@ -1157,10 +1163,9 @@ const ImageLoader = {
         const width = window.innerWidth;
         let newColumnCount;
         
-        // 2025-02-01 修复：收藏视图固定使用3列布局
-        if (this.state.currentDisplayMode === 'favorites_only') {
-            newColumnCount = 3;
-        } else {
+        // 2025-02-01 优化：根据视图模式使用不同的响应式布局
+        if (this.state.currentDisplayMode === 'exiled_list') {
+            // 流放视图特殊布局：1280px以上显示4列，1024px以上显示3列
             if (width >= 1280) {
                 newColumnCount = 4;
             } else if (width >= 1024) {
@@ -1169,6 +1174,15 @@ const ImageLoader = {
                 newColumnCount = 2;
             } else {
                 newColumnCount = 1;
+            }
+        } else {
+            // 普通视图和收藏视图：移动端优化，桌面端显示3列
+            if (width >= 1024) {
+                newColumnCount = 3; // 桌面端统一显示3列
+            } else if (width >= 768) {
+                newColumnCount = 2;
+            } else {
+                newColumnCount = 1; // 移动端优化：单列显示，提升用户体验
             }
         }
         

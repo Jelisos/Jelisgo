@@ -126,6 +126,7 @@ Crawl-delay: 1
 
 # 站点地图位置
 Sitemap: https://Jelisgo.cn/sitemap.xml
+Sitemap: https://Jelisgo.cn/generate_wallpaper_sitemap.php
 
 # 主机设置
 Host: https://Jelisgo.cn

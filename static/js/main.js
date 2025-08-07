@@ -19,6 +19,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 初始化移动端菜单
     initMobileMenu();
     
+    // 初始化移动端搜索
+    initMobileSearch();
+    
     // 初始化未实现功能提示
     initNotImplementedFeatures();
     
@@ -76,6 +79,59 @@ function initMobileMenu() {
     if (mobileMenuBtn && mobileMenu) {
         mobileMenuBtn.addEventListener('click', () => {
             mobileMenu.classList.toggle('hidden');
+        });
+    }
+}
+
+/**
+ * 初始化移动端搜索
+ */
+function initMobileSearch() {
+    const mobileSearchToggle = document.getElementById('mobile-search-toggle');
+    const mobileSearchContainer = document.getElementById('mobile-search-container');
+    const mobileSearchInput = document.getElementById('mobile-search-input');
+    
+    if (mobileSearchToggle && mobileSearchContainer) {
+        mobileSearchToggle.addEventListener('click', () => {
+            const isHidden = mobileSearchContainer.classList.contains('hidden');
+            
+            if (isHidden) {
+                // 展开搜索框
+                mobileSearchContainer.classList.remove('hidden');
+                // 聚焦到搜索输入框
+                setTimeout(() => {
+                    if (mobileSearchInput) {
+                        mobileSearchInput.focus();
+                    }
+                }, 100);
+            } else {
+                // 收起搜索框
+                mobileSearchContainer.classList.add('hidden');
+                // 清空搜索内容
+                if (mobileSearchInput) {
+                    mobileSearchInput.value = '';
+                }
+            }
+        });
+        
+        // 点击搜索框外部时收起搜索框
+        document.addEventListener('click', (e) => {
+            if (!mobileSearchContainer.contains(e.target) && !mobileSearchToggle.contains(e.target)) {
+                mobileSearchContainer.classList.add('hidden');
+                if (mobileSearchInput) {
+                    mobileSearchInput.value = '';
+                }
+            }
+        });
+        
+        // 按ESC键收起搜索框
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !mobileSearchContainer.classList.contains('hidden')) {
+                mobileSearchContainer.classList.add('hidden');
+                if (mobileSearchInput) {
+                    mobileSearchInput.value = '';
+                }
+            }
         });
     }
 }

@@ -252,7 +252,7 @@
                     </div>
                     <!-- 剩余下载次数显示 -->
                     <div id="download-quota-display" class="mt-2 text-center text-sm text-gray-600">
-                        <span>本月剩余下载次数: <span id="remaining-downloads-yulan" class="font-medium text-blue-600">-</span></span>
+                        <span>剩余下载次数: <span id="remaining-downloads-yulan" class="font-medium text-blue-600">-</span></span>
                     </div>
                 </div>
 
@@ -659,20 +659,77 @@
                 { filename: '兽耳娘.png', path: 'static/wallpapers/兽耳娘.png' }
             ];
 
-            // 获取URL参数中的图片
+            // 获取URL参数
             const urlParams = new URLSearchParams(window.location.search);
             let imageUrl = urlParams.get('image');
+            const wallpaperId = urlParams.get('id');
 
-            // 环境检测的图片URL处理逻辑
-            if (imageUrl) {
-                let finalImageUrl = imageUrl;
+            // 检测当前环境
+            const isLocalhost = window.location.hostname === 'localhost' || 
+                               window.location.hostname === '127.0.0.1' || 
+                               window.location.hostname.startsWith('192.168.') ||
+                               window.location.hostname.startsWith('10.') ||
+                               window.location.hostname.startsWith('172.');
+
+            // 优先通过壁纸ID从数据库获取原图路径
+            if (wallpaperId) {
+                console.log('通过壁纸ID从数据库获取原图路径:', wallpaperId);
                 
-                // 检测当前环境
-                const isLocalhost = window.location.hostname === 'localhost' || 
-                                   window.location.hostname === '127.0.0.1' || 
-                                   window.location.hostname.startsWith('192.168.') ||
-                                   window.location.hostname.startsWith('10.') ||
-                                   window.location.hostname.startsWith('172.');
+                fetch(`api/wallpaper_detail.php?id=${wallpaperId}`)
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.code === 0 && result.data && result.data.path) {
+                            let originalImagePath = result.data.path;
+                            console.log('从数据库获取到原图路径:', originalImagePath);
+                            
+                            if (isLocalhost) {
+                                // 本地环境：使用TOKEN化路径
+                                if (window.ImageTokenManager) {
+                                    window.ImageTokenManager.buildTokenizedUrl(
+                                        wallpaperId, 
+                                        'original', 
+                                        { imagePath: originalImagePath }
+                                    ).then(tokenizedUrl => {
+                                        console.log('本地环境：使用TOKEN化URL:', tokenizedUrl);
+                                        loadAndDisplayWallpaper(tokenizedUrl);
+                                    }).catch(error => {
+                                        console.warn('本地环境：TOKEN化失败，使用原始路径:', error);
+                                        loadAndDisplayWallpaper(originalImagePath);
+                                    });
+                                } else {
+                                    console.log('本地环境：ImageTokenManager不可用，使用原始路径');
+                                    loadAndDisplayWallpaper(originalImagePath);
+                                }
+                            } else {
+                                // 线上环境：直接使用完整的原图路径
+                                console.log('线上环境：直接使用完整原图路径:', originalImagePath);
+                                loadAndDisplayWallpaper(originalImagePath);
+                            }
+                        } else {
+                            console.error('无法从数据库获取壁纸信息:', result);
+                            // 如果有传入的imageUrl作为备用
+                            if (imageUrl) {
+                                console.log('使用传入的图片URL作为备用:', imageUrl);
+                                loadAndDisplayWallpaper(imageUrl);
+                            } else {
+                                alert('无法加载壁纸，请重试或上传新图片。');
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('获取壁纸信息失败:', error);
+                        // 如果有传入的imageUrl作为备用
+                        if (imageUrl) {
+                            console.log('API调用失败，使用传入的图片URL作为备用:', imageUrl);
+                            loadAndDisplayWallpaper(imageUrl);
+                        } else {
+                            alert('网络错误，无法加载壁纸。');
+                        }
+                    });
+            } else if (imageUrl) {
+                // 兼容旧的传递方式：如果没有ID但有imageUrl
+                console.log('兼容模式：使用传入的图片URL:', imageUrl);
+                let finalImageUrl = imageUrl;
                 
                 if (isLocalhost) {
                     // 本地环境：保持TOKEN化路径或转换预览图为原图
@@ -684,45 +741,23 @@
                         console.log('本地环境：使用传入的图片URL:', finalImageUrl);
                     }
                 } else {
-                    // 线上环境：如果是TOKEN化URL，需要通过API获取真实路径
+                    // 线上环境：处理各种情况
                     if (imageUrl.includes('image_proxy.php?token=') || imageUrl.includes('proxy.php?token=')) {
-                        // 线上环境收到TOKEN化URL，通过壁纸ID获取真实路径
-                        const wallpaperId = urlParams.get('id');
-                        if (wallpaperId) {
-                            // 异步获取真实路径
-                            fetch(`api/wallpaper_detail.php?id=${wallpaperId}`)
-                                .then(response => response.json())
-                                .then(result => {
-                                    if (result.code === 0 && result.data && result.data.path) {
-                                        console.log('线上环境：通过API获取真实路径:', result.data.path);
-                                        loadAndDisplayWallpaper(result.data.path);
-                                    } else {
-                                        console.warn('线上环境：无法获取真实路径，使用原URL');
-                                        loadAndDisplayWallpaper(imageUrl);
-                                    }
-                                })
-                                .catch(error => {
-                                    console.error('线上环境：获取真实路径失败:', error);
-                                    loadAndDisplayWallpaper(imageUrl);
-                                });
-                            return; // 提前返回，等待异步处理
-                        }
+                        console.warn('线上环境收到TOKEN化URL，但没有壁纸ID，无法获取真实路径');
+                        finalImageUrl = imageUrl; // 尝试使用TOKEN化URL
                     } else if (imageUrl.includes('static/preview/')) {
-                        // 线上环境：预览图转原图
                         finalImageUrl = imageUrl.replace('static/preview/', 'static/wallpapers/');
                         console.log('线上环境：预览图路径转换为原图路径:', imageUrl, '->', finalImageUrl);
                     } else {
-                        // 线上环境：直接使用传入的路径
                         finalImageUrl = imageUrl;
                         console.log('线上环境：直接使用传入的图片URL:', finalImageUrl);
                     }
                 }
                 
-                // 加载图片
                 loadAndDisplayWallpaper(finalImageUrl);
             } else {
-                // 如果没有图片URL，不加载任何图片，等待用户上传
-                console.log('没有指定图片URL，请上传。');
+                // 如果既没有ID也没有图片URL，等待用户上传
+                console.log('没有指定壁纸ID或图片URL，请上传图片。');
             }
 
             // 设备切换

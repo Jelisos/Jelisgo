@@ -8,21 +8,22 @@
  */
 
 // 检测是否为线上环境
-function isOnlineEnvironment() {
-    // 检查域名（最可靠的方式）
-    $serverName = $_SERVER["SERVER_NAME"] ?? "";
-    if (strpos($serverName, "jelisgo.cn") !== false || strpos($serverName, "www.jelisgo.cn") !== false) {
-        return true;
-    }
-    
-    // 检查HTTP_HOST
-    $httpHost = $_SERVER["HTTP_HOST"] ?? "";
-    if (strpos($httpHost, "jelisgo.cn") !== false || strpos($httpHost, "www.jelisgo.cn") !== false) {
-        return true;
-    }
-    
-    // 检查文档根目录（Linux服务器特征）
-    $docRoot = $_SERVER["DOCUMENT_ROOT"] ?? "";
+if (!function_exists('isOnlineEnvironment')) {
+    function isOnlineEnvironment() {
+        // 检查域名（最可靠的方式）
+        $serverName = $_SERVER["SERVER_NAME"] ?? "";
+        if (strpos($serverName, "jelisgo.cn") !== false || strpos($serverName, "www.jelisgo.cn") !== false) {
+            return true;
+        }
+        
+        // 检查HTTP_HOST
+        $httpHost = $_SERVER["HTTP_HOST"] ?? "";
+        if (strpos($httpHost, "jelisgo.cn") !== false || strpos($httpHost, "www.jelisgo.cn") !== false) {
+            return true;
+        }
+        
+        // 检查文档根目录（Linux服务器特征）
+        $docRoot = $_SERVER["DOCUMENT_ROOT"] ?? "";
     if (strpos($docRoot, "/www/wwwroot") !== false || 
         strpos($docRoot, "/var/www") !== false ||
         strpos($docRoot, "/home/") !== false) {
@@ -60,6 +61,7 @@ function isOnlineEnvironment() {
     }
     
     return false;
+    }
 }
 
 // 根据环境设置数据库配置
@@ -136,7 +138,8 @@ function closeDBConnection($conn) {
 }
 
 // 测试数据库连接
-function testDatabaseConnection() {
+if (!function_exists('testDatabaseConnection')) {
+    function testDatabaseConnection() {
     try {
         $pdo = new PDO(
             "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET,
@@ -163,6 +166,7 @@ function testDatabaseConnection() {
     } catch (Exception $e) {
         error_log("[Config] 数据库连接测试失败: " . $e->getMessage());
         return false;
+    }
     }
 }
 

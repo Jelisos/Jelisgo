@@ -83,15 +83,7 @@ const Dashboard = {
             });
         }
 
-        // 移动端侧边栏按钮
-        const mobileSidebarButton = document.getElementById('mobile-sidebar-button');
-        const sidebar = document.getElementById('sidebar');
-        if (mobileSidebarButton && sidebar) {
-            mobileSidebarButton.addEventListener('click', () => {
-                sidebar.classList.toggle('hidden');
-                sidebar.classList.toggle('mobile-visible'); // 添加一个类来控制移动端显示
-            });
-        }
+        // 移动端侧边栏控制逻辑已移至dashboard.php中，避免重复绑定
 
         // TODO: 其他仪表盘相关事件绑定，例如图片管理、个人资料修改、密码修改、头像上传等
         // 这些需要从dashboard.php中复制过来

@@ -65,6 +65,28 @@
             @media (max-width: 768px) {
                 #sidebar {
                     padding-top: 64px; /* 为顶部导航栏留出空间 */
+                    height: 100vh; /* 确保侧边栏占满整个视口高度 */
+                    max-height: 100vh; /* 限制最大高度 */
+                }
+                #sidebar .p-4 {
+                    height: calc(100vh - 64px); /* 内容区域高度 */
+                    overflow-y: auto; /* 确保内容可以滚动 */
+                    padding-bottom: 2rem; /* 底部留出空间 */
+                }
+                /* 移动端会员权益卡片优化 */
+                #membership-benefits-card {
+                    margin-top: 1rem !important; /* 减少顶部间距 mt-6 -> mt-4 */
+                    padding: 0.75rem !important; /* 减少内边距 p-4 -> p-3 */
+                }
+                #membership-benefits-card .mb-3 {
+                    margin-bottom: 0.5rem !important; /* 减少标题下方间距 */
+                }
+                /* 移动端升级按钮区域优化 */
+                #upgrade-buttons-container {
+                    margin-top: 1rem !important; /* 减少顶部间距 mt-6 -> mt-4 */
+                }
+                #permanent-member-info .p-4 {
+                    padding: 0.75rem !important; /* 减少感谢卡片内边距 */
                 }
             }
         }

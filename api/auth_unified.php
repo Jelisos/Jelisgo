@@ -273,7 +273,11 @@ function handleRegister($data) {
             
             sendResponse(200, '注册成功', $response);
         } else {
-            sendResponse(500, '注册失败');
+            // 记录详细的数据库错误
+            $error = $stmt->error;
+            $errno = $stmt->errno;
+            error_log("[AUTH_UNIFIED] 数据库插入失败，错误码: {$errno}, 错误信息: {$error}");
+            sendResponse(500, '注册失败: ' . $error);
         }
         
     } catch (Exception $e) {
